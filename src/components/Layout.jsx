@@ -100,11 +100,6 @@ export function Layout({ children }) {
                   </Link>
                 </li>
                 <li>
-                  <Link to={getLink('/about')} className="text-gray-300 hover:text-white transition duration-300">
-                    About Us
-                  </Link>
-                </li>
-                <li>
                   <Link to={getLink('/contact')} className="text-gray-300 hover:text-white transition duration-300">
                     Contact
                   </Link>
@@ -117,24 +112,40 @@ export function Layout({ children }) {
               <h3 className="text-xl font-bold mb-4">Resources</h3>
               <ul className="space-y-2">
                 <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition duration-300">
-                    Cannabis Laws
-                  </a>
+                  {domain.stateCode === 'NM' ? (
+                    <a
+                      href="https://www.rld.nm.gov/cannabis/cannabis-in-new-mexico/adult-use/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-white transition duration-300"
+                    >
+                      Cannabis Laws
+                    </a>
+                  ) : (
+                    <a
+                      href="https://cannabis.colorado.gov/legal-marijuana-use-in-colorado"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-white transition duration-300"
+                    >
+                      Cannabis Laws
+                    </a>
+                  )}
                 </li>
                 <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition duration-300">
+                  <Link to={getLink('/medical-cards')} className="text-gray-300 hover:text-white transition duration-300">
                     Medical Cards
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition duration-300">
+                  <Link to={getLink('/strain-guide')} className="text-gray-300 hover:text-white transition duration-300">
                     Strain Guide
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition duration-300">
+                  <Link to={getLink('/faq')} className="text-gray-300 hover:text-white transition duration-300">
                     FAQ
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

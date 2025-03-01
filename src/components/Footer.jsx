@@ -20,6 +20,16 @@ export function Footer() {
     return domainParam ? `${path}?domain=${domainParam}` : path;
   };
 
+  // Get cannabis laws link based on state
+  const getCannabisLawsLink = () => {
+    if (domain.stateCode === 'NM') {
+      return 'https://www.rld.nm.gov/cannabis/cannabis-in-new-mexico/adult-use/';
+    } else if (domain.stateCode === 'CO') {
+      return 'https://cannabis.colorado.gov/legal-marijuana-use';
+    }
+    return '#';
+  };
+
   return (
     <footer className="bg-dark text-white">
       {/* Main Footer */}
@@ -68,11 +78,6 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link to={getLink('/about')} className="text-gray-300 hover:text-accent transition duration-300">
-                  About Us
-                </Link>
-              </li>
-              <li>
                 <Link to={getLink('/contact')} className="text-gray-300 hover:text-accent transition duration-300">
                   Contact
                 </Link>
@@ -85,24 +90,34 @@ export function Footer() {
             <h3 className="text-xl font-bold mb-4">Resources</h3>
             <ul className="space-y-2">
               <li>
-                <a href="#" className="text-gray-300 hover:text-accent transition duration-300">
-                  Cannabis Guide
-                </a>
+                <Link to={getLink('/strain-guide')} className="text-gray-300 hover:text-accent transition duration-300">
+                  Strain Guide
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-gray-300 hover:text-accent transition duration-300">
-                  Strain Database
-                </a>
+                <Link to={getLink('/medical-cards')} className="text-gray-300 hover:text-accent transition duration-300">
+                  Medical Cards
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-gray-300 hover:text-accent transition duration-300">
+                <Link to={getLink('/faq')} className="text-gray-300 hover:text-accent transition duration-300">
+                  FAQ
+                </Link>
+              </li>
+              <li>
+                <a href={getCannabisLawsLink()} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-accent transition duration-300">
                   Cannabis Laws
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-300 hover:text-accent transition duration-300">
-                  FAQ
-                </a>
+                <Link to={getLink('/privacy')} className="text-gray-300 hover:text-accent transition duration-300">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link to={getLink('/terms')} className="text-gray-300 hover:text-accent transition duration-300">
+                  Terms of Service
+                </Link>
               </li>
             </ul>
           </div>
