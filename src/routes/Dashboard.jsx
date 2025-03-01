@@ -15,6 +15,36 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree } from 'react-icons/fa';
+import { NM, CO } from '@state-icons/react';
+
+// Common cities in NM and CO
+const CITIES = {
+  'New Mexico': [
+    'Albuquerque',
+    'Santa Fe',
+    'Las Cruces',
+    'Rio Rancho',
+    'Roswell',
+    'Farmington',
+    'Las Vegas',
+    'Alamogordo',
+    'Carlsbad',
+    'Hobbs'
+  ].sort(),
+  'Colorado': [
+    'Denver',
+    'Colorado Springs',
+    'Aurora',
+    'Fort Collins',
+    'Lakewood',
+    'Thornton',
+    'Arvada',
+    'Westminster',
+    'Pueblo',
+    'Boulder'
+  ].sort()
+};
 
 export default function Dashboard() {
   const { currentUser, userProfile, logout, hasRole, hasStateAccess } = useAuth();
@@ -30,7 +60,6 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [domainParam, setDomainParam] = useState(null);
-  const selectedState = domain.state || 'NM';
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('operator');
   const [inviteBusinessId, setInviteBusinessId] = useState('');
@@ -39,13 +68,22 @@ export default function Dashboard() {
   const [inviteSuccess, setInviteSuccess] = useState('');
 
   // Add new state for location form
-  const [newLocation, setNewLocation] = useState({
+  const [selectedState, setSelectedState] = useState('New Mexico');
+  const [isMultiLocation, setIsMultiLocation] = useState(false);
+  const [locationFormData, setLocationFormData] = useState({
     companyName: '',
-    address: '',
-    phone: '',
+    street: '',
+    suite: '',
+    city: '',
+    zipCode: '',
     contactName: '',
     contactEmail: '',
+    contactPhone: '',
+    locationPhone: '',
+    websiteUrl: ''
   });
+  const [existingBusinesses, setExistingBusinesses] = useState([]);
+  const [filteredBusinesses, setFilteredBusinesses] = useState([]);
 
   const db = getFirestore();
   const functions = getFunctions();
@@ -81,7 +119,7 @@ export default function Dashboard() {
 
         // If user is admin, fetch all businesses for the selected state
         if (userProfile.role === 'admin') {
-          const businessesRef = collection(db, `businesses-${selectedState.toLowerCase()}`);
+          const businessesRef = collection(db, `businesses-${domain.state.toLowerCase()}`);
           const businessesSnapshot = await getDocs(businessesRef);
 
           businessesData = businessesSnapshot.docs.map(doc => ({
@@ -91,17 +129,17 @@ export default function Dashboard() {
             status: 'active',    // Default status for display
             views: Math.floor(Math.random() * 1000), // Random views for display
             created: new Date(doc.data().createdAt?.toDate()).toISOString().split('T')[0] || 'N/A',
-            location: `${doc.data().city || 'Unknown'}, ${selectedState}`
+            location: `${doc.data().city || 'Unknown'}, ${domain.state}`
           }));
         }
         // Otherwise, fetch only businesses the user has access to
         else if (userProfile.businesses && userProfile.businesses.length > 0) {
           // Filter businesses by state
-          const userBusinessesInState = userProfile.businesses.filter(b => b.state === selectedState);
+          const userBusinessesInState = userProfile.businesses.filter(b => b.state === domain.state);
 
           // Fetch each business
           for (const business of userBusinessesInState) {
-            const businessRef = doc(db, `businesses-${selectedState.toLowerCase()}`, business.businessId);
+            const businessRef = doc(db, `businesses-${domain.state.toLowerCase()}`, business.businessId);
             const businessDoc = await getDoc(businessRef);
 
             if (businessDoc.exists()) {
@@ -114,7 +152,7 @@ export default function Dashboard() {
                 status: 'active',    // Default status for display
                 views: Math.floor(Math.random() * 1000), // Random views for display
                 created: new Date(data.createdAt?.toDate()).toISOString().split('T')[0] || 'N/A',
-                location: `${data.city || 'Unknown'}, ${selectedState}`
+                location: `${data.city || 'Unknown'}, ${domain.state}`
               });
             }
           }
@@ -130,7 +168,56 @@ export default function Dashboard() {
     };
 
     fetchBusinesses();
-  }, [currentUser, userProfile, selectedState, db, isAdmin]);
+  }, [currentUser, userProfile, domain.state, db, isAdmin]);
+
+  // Load existing businesses when state changes and is multi-location
+  useEffect(() => {
+    const loadExistingBusinesses = async () => {
+      if (!domain.state || !isMultiLocation) {
+        setExistingBusinesses([]);
+        return;
+      }
+
+      try {
+        const businessesRef = collection(db, `businesses-${domain.state.toLowerCase().replace(' ', '-')}`);
+        const q = query(businessesRef, where('isMultiLocation', '==', true));
+        const snapshot = await getDocs(q);
+
+        const businesses = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        setExistingBusinesses(businesses);
+      } catch (err) {
+        console.error('Error loading businesses:', err);
+        setError('Failed to load existing businesses');
+      }
+    };
+
+    loadExistingBusinesses();
+  }, [domain.state, isMultiLocation, db]);
+
+  // Filter businesses based on input
+  useEffect(() => {
+    if (!isMultiLocation || !locationFormData.companyName) {
+      setFilteredBusinesses([]);
+      return;
+    }
+
+    const filtered = existingBusinesses.filter(business =>
+      business.name.toLowerCase().includes(locationFormData.companyName.toLowerCase())
+    );
+    setFilteredBusinesses(filtered);
+  }, [locationFormData.companyName, existingBusinesses, isMultiLocation]);
+
+  const handleLocationInputChange = (e) => {
+    const { name, value } = e.target;
+    setLocationFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   // Mock recent activity data
   const recentActivity = [
@@ -159,7 +246,7 @@ export default function Dashboard() {
       const result = await inviteUserToBusiness({
         email: inviteEmail,
         businessId: inviteBusinessId,
-        state: selectedState,
+        state: domain.state,
         role: inviteRole,
         isAdminInvite: isAdmin
       });
@@ -177,36 +264,93 @@ export default function Dashboard() {
   };
 
   // Check if user has access to the selected state
-  const canAccessState = hasStateAccess(selectedState);
+  const canAccessState = hasStateAccess(domain.state);
 
   // Add location handler
   const handleAddLocation = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
+    setInviteSuccess('');
+    setIsLoading(true);
 
     try {
-      const locationRef = collection(db, `businesses-${selectedState.toLowerCase()}`);
-      await addDoc(locationRef, {
-        ...newLocation,
+      if (!selectedState) {
+        throw new Error('Please select a state');
+      }
+
+      const locationData = {
+        ...locationFormData,
+        state: selectedState,
+        isMultiLocation,
         createdAt: serverTimestamp(),
         createdBy: currentUser.uid,
-        state: selectedState,
-        status: 'pending',
-        type: 'Dispensary'
-      });
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.uid,
+        address: {
+          street: locationFormData.street,
+          suite: locationFormData.suite || '',
+          city: locationFormData.city,
+          state: selectedState,
+          zipCode: locationFormData.zipCode
+        },
+        contact: {
+          name: locationFormData.contactName,
+          email: locationFormData.contactEmail,
+          phone: locationFormData.contactPhone
+        },
+        locationPhone: locationFormData.locationPhone,
+        websiteUrl: locationFormData.websiteUrl
+      };
 
-      setNewLocation({
+      // Remove individual fields that are now in nested objects
+      delete locationData.street;
+      delete locationData.suite;
+      delete locationData.city;
+      delete locationData.zipCode;
+      delete locationData.contactName;
+      delete locationData.contactEmail;
+      delete locationData.contactPhone;
+      delete locationData.locationPhone;
+      delete locationData.websiteUrl;
+
+      const businessesCollection = `businesses-${selectedState.toLowerCase().replace(' ', '-')}`;
+
+      if (isMultiLocation && locationFormData.existingBusinessId) {
+        // Add location to existing business
+        const businessRef = doc(db, businessesCollection, locationFormData.existingBusinessId);
+        const locationsRef = collection(businessRef, 'locations');
+        await addDoc(locationsRef, locationData);
+      } else {
+        // Create new business record
+        const businessRef = await addDoc(collection(db, businessesCollection), locationData);
+
+        if (isMultiLocation) {
+          // If it's a new multi-location business, create a locations subcollection
+          // and add the first location
+          const locationsRef = collection(businessRef, 'locations');
+          await addDoc(locationsRef, {
+            ...locationData,
+            isMainLocation: true
+          });
+        }
+      }
+
+      setLocationFormData({
         companyName: '',
-        address: '',
-        phone: '',
+        street: '',
+        suite: '',
+        city: '',
+        zipCode: '',
         contactName: '',
         contactEmail: '',
+        contactPhone: '',
+        locationPhone: '',
+        websiteUrl: ''
       });
       setInviteSuccess('Location added successfully');
     } catch (err) {
       console.error('Error adding location:', err);
-      setError('Failed to add location. Please try again.');
+      setError(err.message || 'Failed to add location');
     } finally {
       setIsLoading(false);
     }
@@ -225,7 +369,7 @@ export default function Dashboard() {
               {userProfile && (
                 <p className="text-gray-600 mt-2">
                   Welcome, {userProfile.firstName} {userProfile.lastName} | Role: {userProfile.role}
-                  {!isAdmin && ` | State: ${selectedState}`}
+                  {!isAdmin && ` | State: ${domain.state}`}
                 </p>
               )}
             </div>
@@ -348,7 +492,7 @@ export default function Dashboard() {
                     </div>
                   ) : businesses.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-lg">
-                      <p className="text-gray-600">You don't have any businesses in {selectedState} yet.</p>
+                      <p className="text-gray-600">You don't have any businesses in {domain.state} yet.</p>
                       <button
                         onClick={() => navigate(getLink('/subscription'))}
                         className="mt-4 px-4 py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300"
@@ -555,83 +699,277 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <div className="max-w-2xl bg-gray-50 p-6 rounded-lg">
-                    <form onSubmit={handleAddLocation} className="space-y-4">
-                      <div>
-                        <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="max-w-4xl bg-gray-50 p-6 rounded-lg">
+                    <form onSubmit={handleAddLocation} className="space-y-6">
+                      {/* State and Location Type Selection - Combined Row */}
+                      <div className="flex items-center gap-8">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select State
+                          </label>
+                          <div className="flex gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedState('New Mexico')}
+                              className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
+                                ? 'bg-accent text-white border-accent'
+                                : 'border-gray-300 hover:border-accent'
+                                }`}
+                            >
+                              <NM className="w-8 h-8" />
+                              <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                                New Mexico
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedState('Colorado')}
+                              className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
+                                ? 'bg-accent text-white border-accent'
+                                : 'border-gray-300 hover:border-accent'
+                                }`}
+                            >
+                              <CO className="w-8 h-8" />
+                              <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                                Colorado
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="border-l border-gray-300 h-16 mx-4" />
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Location Type
+                          </label>
+                          <div className="flex gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setIsMultiLocation(false)}
+                              className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${!isMultiLocation
+                                ? 'bg-accent text-white border-accent'
+                                : 'border-gray-300 hover:border-accent'
+                                }`}
+                            >
+                              <FaMapMarkerAlt className="w-8 h-8" />
+                              <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                                Single Location
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsMultiLocation(true)}
+                              className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${isMultiLocation
+                                ? 'bg-accent text-white border-accent'
+                                : 'border-gray-300 hover:border-accent'
+                                }`}
+                            >
+                              <FaBuilding className="w-8 h-8" />
+                              <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                                Multi-Location Business
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Company Name with Autocomplete for Multi-Location */}
+                      <div className="relative">
+                        <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
                           Company Name
                         </label>
                         <input
+                          type="text"
                           id="companyName"
-                          type="text"
-                          value={newLocation.companyName}
-                          onChange={(e) => setNewLocation({ ...newLocation, companyName: e.target.value })}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          name="companyName"
+                          value={locationFormData.companyName}
+                          onChange={handleLocationInputChange}
+                          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
                           required
                         />
+                        {isMultiLocation && filteredBusinesses.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                            {filteredBusinesses.map(business => (
+                              <div
+                                key={business.id}
+                                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                onClick={() => {
+                                  setLocationFormData(prev => ({
+                                    ...prev,
+                                    companyName: business.name,
+                                    existingBusinessId: business.id
+                                  }));
+                                  setFilteredBusinesses([]);
+                                }}
+                              >
+                                {business.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                          Address
-                        </label>
-                        <input
-                          id="address"
-                          type="text"
-                          value={newLocation.address}
-                          onChange={(e) => setNewLocation({ ...newLocation, address: e.target.value })}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          required
-                        />
+                      {/* Physical Address Fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="street" className="block text-sm font-medium text-gray-700 mb-2">
+                            Street Address
+                          </label>
+                          <input
+                            type="text"
+                            id="street"
+                            name="street"
+                            value={locationFormData.street}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="suite" className="block text-sm font-medium text-gray-700 mb-2">
+                            Suite/Unit (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            id="suite"
+                            name="suite"
+                            value={locationFormData.suite}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
+                            City
+                          </label>
+                          <select
+                            id="city"
+                            name="city"
+                            value={locationFormData.city}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                          >
+                            <option value="">Select a city</option>
+                            {selectedState && CITIES[selectedState].map(city => (
+                              <option key={city} value={city}>{city}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-2">
+                            ZIP Code
+                          </label>
+                          <input
+                            type="text"
+                            id="zipCode"
+                            name="zipCode"
+                            value={locationFormData.zipCode}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                            pattern="[0-9]{5}"
+                            maxLength="5"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Number
-                        </label>
-                        <input
-                          id="phone"
-                          type="tel"
-                          value={newLocation.phone}
-                          onChange={(e) => setNewLocation({ ...newLocation, phone: e.target.value })}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          required
-                        />
+                      {/* Location Phone and Website */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="locationPhone" className="block text-sm font-medium text-gray-700 mb-2">
+                            Location Phone
+                          </label>
+                          <input
+                            type="tel"
+                            id="locationPhone"
+                            name="locationPhone"
+                            value={locationFormData.locationPhone}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                            pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}"
+                            placeholder="123-456-7890"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="websiteUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                            Website URL
+                          </label>
+                          <input
+                            type="url"
+                            id="websiteUrl"
+                            name="websiteUrl"
+                            value={locationFormData.websiteUrl}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            placeholder="https://example.com"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-1">
-                          Contact Name
-                        </label>
-                        <input
-                          id="contactName"
-                          type="text"
-                          value={newLocation.contactName}
-                          onChange={(e) => setNewLocation({ ...newLocation, contactName: e.target.value })}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          required
-                        />
+                      {/* Contact Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-2">
+                            Contact Name
+                          </label>
+                          <input
+                            type="text"
+                            id="contactName"
+                            name="contactName"
+                            value={locationFormData.contactName}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                            Contact Email
+                          </label>
+                          <input
+                            type="email"
+                            id="contactEmail"
+                            name="contactEmail"
+                            value={locationFormData.contactEmail}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contactPhone" className="block text-sm font-medium text-gray-700 mb-2">
+                            Contact Phone
+                          </label>
+                          <input
+                            type="tel"
+                            id="contactPhone"
+                            name="contactPhone"
+                            value={locationFormData.contactPhone}
+                            onChange={handleLocationInputChange}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent"
+                            required
+                            pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}"
+                            placeholder="123-456-7890"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                          Contact Email
-                        </label>
-                        <input
-                          id="contactEmail"
-                          type="email"
-                          value={newLocation.contactEmail}
-                          onChange={(e) => setNewLocation({ ...newLocation, contactEmail: e.target.value })}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          required
-                        />
-                      </div>
-
+                      {/* Submit Button */}
                       <div>
                         <button
                           type="submit"
+                          onClick={handleAddLocation}
                           disabled={isLoading}
-                          className="w-full py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300"
+                          className="w-full py-2 bg-accent text-white rounded-md hover:bg-accent-dark transition duration-300 disabled:opacity-50"
                         >
                           {isLoading ? 'Adding Location...' : 'Add Location'}
                         </button>

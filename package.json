@@ -18,12 +18,14 @@
     "deploy:all": "npm run build:nm && npm run build:co && firebase deploy --only hosting"
   },
   "dependencies": {
+    "@state-icons/react": "^0.1.1",
     "express": "^4.18.2",
     "firebase": "^11.4.0",
     "firebase-admin": "^13.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-firebase-hooks": "^5.1.1",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^6.22.3",
     "stripe": "^17.7.0"
   },

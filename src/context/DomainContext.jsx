@@ -87,8 +87,16 @@ export const DomainProvider = ({ children }) => {
     document.documentElement.style.setProperty('--color-white', colors.white);
   }, [domainData]);
 
+  const setDomainState = (state) => {
+    if (state === 'New Mexico') {
+      setCurrentDomain('505meds');
+    } else if (state === 'Colorado') {
+      setCurrentDomain('303meds');
+    }
+  };
+
   return (
-    <DomainContext.Provider value={domainData}>
+    <DomainContext.Provider value={{ ...domainData, setDomainState }}>
       {children}
     </DomainContext.Provider>
   );
