@@ -16,7 +16,10 @@ export function Layout({ children }) {
     const searchParams = new URLSearchParams(location.search);
     const domain = searchParams.get('domain');
     setDomainParam(domain);
-  }, [location.search]);
+
+    // Scroll to top whenever location changes
+    window.scrollTo(0, 0);
+  }, [location.search, location.pathname]);
 
   // Get link with domain parameter preserved
   const getLink = (path) => {

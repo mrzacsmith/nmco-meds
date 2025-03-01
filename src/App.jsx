@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { DomainProvider } from './context/DomainContext'
 import { AuthProvider } from './context/AuthContext'
+import ScrollToTop from './components/ScrollToTop'
 
 // Import route components
 import Home from './routes/Home'
@@ -16,6 +17,7 @@ import NotFound from './routes/NotFound'
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <DomainProvider>
         <AuthProvider>
           <Routes>
