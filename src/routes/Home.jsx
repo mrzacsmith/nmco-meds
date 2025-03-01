@@ -4,6 +4,7 @@ import { BrowseByCategory } from '../components/BrowseByCategory'
 import { FeaturedBusinesses } from '../components/FeaturedBusinesses'
 import { PopularCities } from '../components/PopularCities'
 import { RegisterYourBusiness } from '../components/RegisterYourBusiness'
+import { NewsletterSubscription } from '../components/NewsletterSubscription'
 
 export default function Home() {
   return (
@@ -23,6 +24,9 @@ export default function Home() {
 
         {/* Register Your Business CTA Component */}
         <RegisterYourBusiness />
+
+        {/* Newsletter Subscription Component */}
+        <NewsletterSubscription />
       </div>
     </Layout>
   )

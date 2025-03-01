@@ -77,6 +77,11 @@ export function Layout({ children }) {
               </div>
             </div>
 
+            {/* Empty Column */}
+            <div className="hidden md:block">
+              {/* Intentionally left blank */}
+            </div>
+
             {/* Quick Links */}
             <div>
               <h3 className="text-xl font-bold mb-4">Quick Links</h3>
@@ -130,27 +135,6 @@ export function Layout({ children }) {
                 </li>
               </ul>
             </div>
-
-            {/* Newsletter */}
-            <div>
-              <h3 className="text-xl font-bold mb-4">Stay Updated</h3>
-              <p className="text-gray-300 mb-4">
-                Subscribe to our newsletter for the latest cannabis news and deals.
-              </p>
-              <form className="flex flex-col space-y-2">
-                <input
-                  type="email"
-                  placeholder="Your email address"
-                  className="px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-                <button
-                  type="submit"
-                  className="bg-accent hover:bg-mid text-white px-4 py-2 rounded-md transition duration-300"
-                >
-                  Subscribe
-                </button>
-              </form>
-            </div>
           </div>
 
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
@@ -161,9 +145,6 @@ export function Layout({ children }) {
               </Link>
               <Link to={getLink('/terms')} className="hover:text-white transition duration-300">
                 Terms of Service
-              </Link>
-              <Link to={getLink('/cookies')} className="hover:text-white transition duration-300">
-                Cookie Policy
               </Link>
             </div>
           </div>

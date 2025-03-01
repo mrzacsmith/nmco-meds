@@ -21,7 +21,10 @@ export function RegisterYourBusiness() {
   };
 
   return (
-    <section className='py-16 bg-secondary'>
+    <section style={{
+      background: 'linear-gradient(135deg, #172A3A 0%, #508991 100%)',
+      padding: '4rem 0'
+    }}>
       <div className='container mx-auto px-4 text-center'>
         <h2 className='text-2xl md:text-3xl font-bold text-white mb-4'>
           Are You a Cannabis Business Owner?

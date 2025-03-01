@@ -24,7 +24,7 @@ export function Footer() {
     <footer className="bg-dark text-white">
       {/* Main Footer */}
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Company Info */}
           <div>
             <h3 className="text-xl font-bold mb-4">{domain.name}</h3>
@@ -105,28 +105,6 @@ export function Footer() {
                 </a>
               </li>
             </ul>
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h3 className="text-xl font-bold mb-4">Stay Updated</h3>
-            <p className="mb-4 text-gray-300">
-              Subscribe to our newsletter for the latest cannabis news and deals in {domain.state}.
-            </p>
-            <form className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="email"
-                placeholder="Your email"
-                className="px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-accent text-dark"
-                required
-              />
-              <button
-                type="submit"
-                className="bg-secondary hover:bg-accent text-white hover:text-dark px-4 py-2 rounded-md transition duration-300"
-              >
-                Subscribe
-              </button>
-            </form>
           </div>
         </div>
       </div>
