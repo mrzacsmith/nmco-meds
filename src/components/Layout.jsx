@@ -39,7 +39,7 @@ export function Layout({ children }) {
       <NavBar />
 
       {/* Main Content */}
-      <main className="flex-grow" style={{ margin: 0, padding: 0 }}>
+      <main className="flex-grow" style={{ margin: 0, padding: 0, paddingTop: '4rem' }}>
         {children}
       </main>
 

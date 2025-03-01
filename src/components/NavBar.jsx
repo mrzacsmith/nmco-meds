@@ -31,11 +31,12 @@ export function NavBar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 py-4" style={{
+    <nav className="fixed top-0 left-0 right-0 z-50 py-4" style={{
       backgroundColor: '#172A3A',
       color: 'white',
       borderBottom: 'none',
-      marginBottom: 0
+      marginBottom: 0,
+      width: '100%'
     }}>
       <div className="container mx-auto px-4">
         <div className="flex items-center">
