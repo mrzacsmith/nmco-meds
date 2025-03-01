@@ -19,7 +19,7 @@ import {
   increment
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree, FaPencilAlt, FaTrashAlt, FaCopy } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree, FaPencilAlt, FaTrashAlt, FaCopy, FaUsers, FaBan, FaLock, FaLockOpen } from 'react-icons/fa';
 import { NM, CO } from '@state-icons/react';
 
 // Common cities in NM and CO
@@ -507,6 +507,174 @@ export default function Dashboard() {
     } catch (err) {
       console.error('Error deleting location:', err);
       setSearchError('Failed to delete location');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Manage Users Tab - For admins
+  const handleUserSearch = async (searchTerm, showAllUsers = false) => {
+    if (!selectedState && !showAllUsers) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (!showAllUsers && searchTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const usersRef = collection(db, 'users');
+      let q = usersRef;
+
+      if (!showAllUsers) {
+        // If not showing all users, filter by state and search term
+        q = query(usersRef, where('accessibleStates', 'array-contains', selectedState));
+      }
+
+      const snapshot = await getDocs(q);
+      const searchTermLower = searchTerm.toLowerCase();
+
+      const results = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(user => {
+          if (!showAllUsers && searchTerm) {
+            // Filter by search term if provided
+            const nameMatch =
+              (user.firstName?.toLowerCase().includes(searchTermLower)) ||
+              (user.lastName?.toLowerCase().includes(searchTermLower));
+            const emailMatch = user.email?.toLowerCase().includes(searchTermLower);
+            const roleMatch = user.role?.toLowerCase().includes(searchTermLower);
+
+            return nameMatch || emailMatch || roleMatch;
+          }
+          return true; // Include all users when showing all or no search term
+        });
+
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Error searching users:', err);
+      setSearchError('Failed to search users');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleBanUser = async (user) => {
+    if (!user.id) return;
+
+    if (!window.confirm(`Are you sure you want to ban ${user.firstName} ${user.lastName}? They will no longer be able to log in.`)) {
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, {
+        isBanned: true,
+        bannedBy: {
+          adminId: currentUser.uid,
+          adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+          timestamp: serverTimestamp()
+        }
+      });
+
+      // Update the user in search results
+      setSearchResults(prev => prev.map(u =>
+        u.id === user.id
+          ? {
+            ...u,
+            isBanned: true,
+            bannedBy: {
+              adminId: currentUser.uid,
+              adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+              timestamp: new Date()
+            }
+          }
+          : u
+      ));
+      setInviteSuccess('User banned successfully');
+    } catch (err) {
+      console.error('Error banning user:', err);
+      setSearchError('Failed to ban user');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleUnbanUser = async (user) => {
+    if (!user.id) return;
+
+    if (!window.confirm(`Are you sure you want to unban ${user.firstName} ${user.lastName}? They will be able to log in again.`)) {
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, {
+        isBanned: false,
+        unbannedBy: {
+          adminId: currentUser.uid,
+          adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+          timestamp: serverTimestamp()
+        }
+      });
+
+      // Update the user in search results
+      setSearchResults(prev => prev.map(u =>
+        u.id === user.id
+          ? {
+            ...u,
+            isBanned: false,
+            unbannedBy: {
+              adminId: currentUser.uid,
+              adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+              timestamp: new Date()
+            }
+          }
+          : u
+      ));
+      setInviteSuccess('User unbanned successfully');
+    } catch (err) {
+      console.error('Error unbanning user:', err);
+      setSearchError('Failed to unban user');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (!user.id) return;
+
+    if (!window.confirm(`Are you sure you want to permanently delete ${user.firstName} ${user.lastName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await deleteDoc(userRef);
+
+      // Remove from search results
+      setSearchResults(prev => prev.filter(u => u.id !== user.id));
+      setInviteSuccess('User deleted successfully');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setSearchError('Failed to delete user');
     } finally {
       setSearchLoading(false);
     }
@@ -1453,7 +1621,7 @@ export default function Dashboard() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex flex-col space-y-2">
+                                  <div className="flex space-x-4">
                                     <button
                                       onClick={() => handleEditLocation(business)}
                                       className="text-accent hover:text-accent-dark"
@@ -1479,6 +1647,174 @@ export default function Dashboard() {
                                     >
                                       <FaTrashAlt className="w-4 h-4" />
                                     </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Manage Users Tab - For admins */}
+              {activeTab === 'users' && isAdmin && (
+                <div>
+                  <div className="max-w-4xl bg-gray-50 p-6 rounded-lg">
+                    {/* Search Box */}
+                    <div className="mb-6">
+                      <label htmlFor="userSearchTerm" className="block text-sm font-medium text-gray-700 mb-2">
+                        Search Users
+                      </label>
+                      <div className="flex items-center gap-4 mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedState('New Mexico')}
+                          className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
+                            ? 'bg-accent text-white border-accent'
+                            : 'border-gray-300 hover:border-accent'
+                            }`}
+                        >
+                          <NM className="w-8 h-8" />
+                          <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                            New Mexico
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedState('Colorado')}
+                          className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
+                            ? 'bg-accent text-white border-accent'
+                            : 'border-gray-300 hover:border-accent'
+                            }`}
+                        >
+                          <CO className="w-8 h-8" />
+                          <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                            Colorado
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUserSearch('', true)}
+                          className="group relative p-2 rounded-lg border transition-all hover:scale-110 border-gray-300 hover:border-accent"
+                          title="Show All Users"
+                        >
+                          <FaUsers className="w-8 h-8" />
+                          <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                            Show All Users
+                          </span>
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          id="userSearchTerm"
+                          className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent pr-10"
+                          placeholder="Search by name, email, or role..."
+                          onChange={(e) => handleUserSearch(e.target.value)}
+                        />
+                        <button
+                          onClick={() => {
+                            document.getElementById('userSearchTerm').value = '';
+                            handleUserSearch('');
+                          }}
+                          className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* User Results */}
+                    <div className="overflow-x-auto">
+                      {searchLoading ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-600">Loading users...</p>
+                        </div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-600">No users found. Try a different search term.</p>
+                        </div>
+                      ) : (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                User
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Role & Access
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Businesses
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {searchResults.map((user) => (
+                              <tr key={user.id}>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-2">
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {user.firstName} {user.lastName}
+                                        {user.role === 'admin' && (
+                                          <span className="ml-2 text-yellow-500" title="Admin">★</span>
+                                        )}
+                                      </div>
+                                      <div className="text-sm text-gray-500">{user.email}</div>
+                                      {user.isBanned && (
+                                        <div className="text-xs text-red-600 mt-1">
+                                          Banned by {user.bannedBy?.adminName} on {user.bannedBy?.timestamp instanceof Date
+                                            ? user.bannedBy.timestamp.toLocaleDateString()
+                                            : user.bannedBy?.timestamp?.toDate?.()?.toLocaleDateString() || 'Unknown date'}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="text-sm text-gray-900 capitalize">{user.role}</div>
+                                  <div className="text-sm text-gray-500">
+                                    {user.accessibleStates ? user.accessibleStates.join(', ') : 'No state access'}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="text-sm text-gray-500">
+                                    {user.businesses ? user.businesses.length : 0} businesses
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-3">
+                                    {user.role !== 'admin' ? (
+                                      <>
+                                        {user.isBanned ? (
+                                          <FaLockOpen
+                                            className="w-5 h-5 text-green-600 hover:text-green-900 cursor-pointer"
+                                            onClick={() => handleUnbanUser(user)}
+                                            title="Unban User"
+                                          />
+                                        ) : (
+                                          <FaLock
+                                            className="w-5 h-5 text-yellow-600 hover:text-yellow-900 cursor-pointer"
+                                            onClick={() => handleBanUser(user)}
+                                            title="Ban User"
+                                          />
+                                        )}
+                                        <FaTrashAlt
+                                          className="w-5 h-5 text-red-600 hover:text-red-900 cursor-pointer"
+                                          onClick={() => handleDeleteUser(user)}
+                                          title="Delete User"
+                                        />
+                                      </>
+                                    ) : null}
                                   </div>
                                 </td>
                               </tr>
