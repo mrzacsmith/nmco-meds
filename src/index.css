@@ -14,11 +14,42 @@
   --color-white: #FFFFFF;     /* Pure white for text on dark backgrounds */
 }
 
+/* Global box-sizing reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Reset and base styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* Navbar styling */
+nav {
+  margin: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  box-shadow: none;
+}
+
+/* Main content styling */
+main {
+  margin: 0;
+  padding: 0;
+}
+
+/* Background color class */
+.bg-dark {
+  background-color: #172A3A;
+}
+
 /* Custom styles */
 body {
   font-family: 'Inter', sans-serif;
-  margin: 0;
-  padding: 0;
   background-color: var(--color-background);
   color: var(--color-dark);
 }

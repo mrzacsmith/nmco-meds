@@ -8,6 +8,39 @@ This guide explains how to deploy the application to multiple domains (505meds.c
 2. Firebase project set up with multiple hosting targets
 3. Domain names configured in Firebase console
 
+## Quick Deployment Steps
+
+If everything is already set up, here are the exact steps to deploy:
+
+1. Make sure you're logged in to Firebase:
+   ```bash
+   firebase login
+   ```
+
+2. Deploy to 505meds.com:
+   ```bash
+   npm run deploy:nm
+   ```
+
+3. Deploy to 303meds.com:
+   ```bash
+   npm run deploy:co
+   ```
+
+4. Or deploy to both at once:
+   ```bash
+   npm run deploy:all
+   ```
+
+   Alternatively, use the deployment script:
+   ```bash
+   ./scripts/deploy.sh
+   ```
+
+That's it! Your sites will be available at:
+- https://505meds.web.app (and 505meds.com if custom domain is set up)
+- https://303meds.web.app (and 303meds.com if custom domain is set up)
+
 ## Domain Configuration
 
 The application uses a domain context to handle domain-specific content and styling. The configuration is in `src/context/DomainContext.jsx`.
