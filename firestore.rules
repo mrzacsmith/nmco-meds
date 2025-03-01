@@ -28,7 +28,7 @@ service cloud.firestore {
       // Users can read and write their own data
       // Admins can read all user data
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       
       // Only admins can create admin users
       allow create: if isAuthenticated() && 

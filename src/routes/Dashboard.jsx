@@ -16,11 +16,13 @@ import {
   serverTimestamp,
   deleteDoc,
   onSnapshot,
-  increment
+  increment,
+  arrayUnion
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree, FaPencilAlt, FaTrashAlt, FaCopy, FaUsers, FaBan, FaLock, FaLockOpen } from 'react-icons/fa';
 import { NM, CO } from '@state-icons/react';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 // Common cities in NM and CO
 const CITIES = {
@@ -103,6 +105,16 @@ export default function Dashboard() {
     NM: { locations: 0, operators: 0 },
     CO: { locations: 0, operators: 0 }
   });
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalConfig, setModalConfig] = useState({
+    title: '',
+    message: '',
+    confirmText: '',
+    type: 'danger',
+    onConfirm: () => { }
+  });
+  const [selectedUser, setSelectedUser] = useState(null);
 
   const db = getFirestore();
   const functions = getFunctions();
@@ -570,22 +582,42 @@ export default function Dashboard() {
   const handleBanUser = async (user) => {
     if (!user.id) return;
 
-    if (!window.confirm(`Are you sure you want to ban ${user.firstName} ${user.lastName}? They will no longer be able to log in.`)) {
-      return;
-    }
+    setSelectedUser(user);
+    setModalConfig({
+      title: 'Ban User',
+      message: `Are you sure you want to ban ${user.firstName} ${user.lastName}? They will no longer be able to log in.`,
+      confirmText: 'Ban User',
+      type: 'warning',
+      onConfirm: () => confirmBanUser(user)
+    });
+    setModalOpen(true);
+  };
 
+  const confirmBanUser = async (user) => {
+    setModalOpen(false);
     setSearchLoading(true);
     setSearchError('');
 
     try {
       const userRef = doc(db, 'users', user.id);
+      const banInfo = {
+        adminId: currentUser.uid,
+        adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+        timestamp: serverTimestamp(),
+        reason: 'Administrative action' // Default reason
+      };
+
       await updateDoc(userRef, {
         isBanned: true,
-        bannedBy: {
+        bannedBy: banInfo,
+        // Add to ban history array with a regular Date instead of serverTimestamp
+        banHistory: arrayUnion({
+          action: 'banned',
           adminId: currentUser.uid,
           adminName: `${userProfile.firstName} ${userProfile.lastName}`,
-          timestamp: serverTimestamp()
-        }
+          timestamp: new Date(),
+          reason: 'Administrative action'
+        })
       });
 
       // Update the user in search results
@@ -595,8 +627,7 @@ export default function Dashboard() {
             ...u,
             isBanned: true,
             bannedBy: {
-              adminId: currentUser.uid,
-              adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+              ...banInfo,
               timestamp: new Date()
             }
           }
@@ -614,22 +645,42 @@ export default function Dashboard() {
   const handleUnbanUser = async (user) => {
     if (!user.id) return;
 
-    if (!window.confirm(`Are you sure you want to unban ${user.firstName} ${user.lastName}? They will be able to log in again.`)) {
-      return;
-    }
+    setSelectedUser(user);
+    setModalConfig({
+      title: 'Unban User',
+      message: `Are you sure you want to unban ${user.firstName} ${user.lastName}? They will be able to log in again.`,
+      confirmText: 'Unban User',
+      type: 'success',
+      onConfirm: () => confirmUnbanUser(user)
+    });
+    setModalOpen(true);
+  };
 
+  const confirmUnbanUser = async (user) => {
+    setModalOpen(false);
     setSearchLoading(true);
     setSearchError('');
 
     try {
       const userRef = doc(db, 'users', user.id);
+      const unbanInfo = {
+        adminId: currentUser.uid,
+        adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+        timestamp: serverTimestamp(),
+        reason: 'Administrative action' // Default reason
+      };
+
       await updateDoc(userRef, {
         isBanned: false,
-        unbannedBy: {
+        unbannedBy: unbanInfo,
+        // Add to ban history array with a regular Date instead of serverTimestamp
+        banHistory: arrayUnion({
+          action: 'unbanned',
           adminId: currentUser.uid,
           adminName: `${userProfile.firstName} ${userProfile.lastName}`,
-          timestamp: serverTimestamp()
-        }
+          timestamp: new Date(),
+          reason: 'Administrative action'
+        })
       });
 
       // Update the user in search results
@@ -639,8 +690,7 @@ export default function Dashboard() {
             ...u,
             isBanned: false,
             unbannedBy: {
-              adminId: currentUser.uid,
-              adminName: `${userProfile.firstName} ${userProfile.lastName}`,
+              ...unbanInfo,
               timestamp: new Date()
             }
           }
@@ -658,10 +708,19 @@ export default function Dashboard() {
   const handleDeleteUser = async (user) => {
     if (!user.id) return;
 
-    if (!window.confirm(`Are you sure you want to permanently delete ${user.firstName} ${user.lastName}? This action cannot be undone.`)) {
-      return;
-    }
+    setSelectedUser(user);
+    setModalConfig({
+      title: 'Delete User',
+      message: `Are you sure you want to permanently delete ${user.firstName} ${user.lastName}? This action cannot be undone.`,
+      confirmText: 'Delete User',
+      type: 'danger',
+      onConfirm: () => confirmDeleteUser(user)
+    });
+    setModalOpen(true);
+  };
 
+  const confirmDeleteUser = async (user) => {
+    setModalOpen(false);
     setSearchLoading(true);
     setSearchError('');
 
@@ -1830,6 +1889,16 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmText={modalConfig.confirmText}
+        type={modalConfig.type}
+      />
     </Layout>
   );
 } 
