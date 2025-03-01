@@ -12,10 +12,14 @@ export default function Register() {
 
   const [formData, setFormData] = useState({
     businessName: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
+    state: domain.state || 'NM', // Default to NM or use domain state
     agreeToTerms: false,
+    isLegalAgent: false,
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,13 +62,23 @@ export default function Register() {
       return;
     }
 
+    if (!formData.isLegalAgent) {
+      setError('You must confirm that you are the owner or legal agent of the business');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const result = await register({
         businessName: formData.businessName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
+        state: domain.state || 'NM', // Use domain state directly
+        agreeToTerms: formData.agreeToTerms,
+        isLegalAgent: formData.isLegalAgent,
       });
 
       if (result.success) {
@@ -114,6 +128,39 @@ export default function Register() {
                   className="block w-full px-3 py-3 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
                   placeholder="Your Business Name"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name
+                  </label>
+                  <input
+                    id="firstName"
+                    name="firstName"
+                    type="text"
+                    required
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-3 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                    placeholder="First Name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    id="lastName"
+                    name="lastName"
+                    type="text"
+                    required
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-3 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                    placeholder="Last Name"
+                  />
+                </div>
               </div>
 
               <div>
@@ -218,6 +265,20 @@ export default function Register() {
                   <Link to={getLink('/privacy')} className="text-mid hover:text-accent">
                     Privacy Policy
                   </Link>
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  id="isLegalAgent"
+                  name="isLegalAgent"
+                  type="checkbox"
+                  checked={formData.isLegalAgent}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-accent focus:ring-accent border-gray-300 rounded"
+                />
+                <label htmlFor="isLegalAgent" className="ml-2 block text-sm text-gray-700">
+                  I confirm that I am the owner or legal agent acting on behalf of this business
                 </label>
               </div>
 

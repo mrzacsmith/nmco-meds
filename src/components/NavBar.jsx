@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDomain } from '../context/DomainContext';
 import { useAuth } from '../context/AuthContext';
 
 export function NavBar() {
   const domain = useDomain();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [domainParam, setDomainParam] = useState(null);
 
@@ -36,6 +37,7 @@ export function NavBar() {
   const handleLogout = async () => {
     await logout();
     closeMenu();
+    navigate(getLink('/'));
   };
 
   return (
@@ -51,7 +53,7 @@ export function NavBar() {
           {/* Logo - Takes 1/4 of the space */}
           <div className="w-1/4">
             <Link
-              to={getLink(user ? '/dashboard' : '/')}
+              to={getLink(currentUser ? '/dashboard' : '/')}
               className="flex items-center"
               onClick={closeMenu}
             >
@@ -81,7 +83,7 @@ export function NavBar() {
 
           {/* Login/Logout Button - Takes 1/4 of the space and aligns content to the right */}
           <div className="hidden md:flex w-1/4 justify-end">
-            {user ? (
+            {currentUser ? (
               <button
                 onClick={handleLogout}
                 className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300"
@@ -138,7 +140,7 @@ export function NavBar() {
               >
                 Dispensaries
               </Link>
-              {user ? (
+              {currentUser ? (
                 <button
                   onClick={handleLogout}
                   className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300 text-left"

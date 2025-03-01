@@ -1,6 +1,20 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChanged, getAuth } from 'firebase/auth';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import {
+  onAuthStateChanged,
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  addDoc,
+  getFirestore,
+  serverTimestamp
+} from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 
 // Firebase configuration
@@ -17,6 +31,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Admin email addresses
+const ADMIN_EMAILS = [
+  'zac@codeshock.dev',
+  'alexandra@codeshock.dev'
+];
 
 // Create the auth context
 const AuthContext = createContext();
@@ -44,104 +64,168 @@ export const useAuth = () => {
 
 // Auth provider component
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in (from localStorage)
+  // Listen for auth state changes
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('user');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+
+      if (user) {
+        // Get user profile from Firestore
+        const { data } = await getUserProfile(user.uid);
+        setUserProfile(data);
+      } else {
+        setUserProfile(null);
       }
-    }
-    setLoading(false);
+
+      setLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
   // Login function
   const login = async (email, password) => {
-    // In a real app, this would make an API call to authenticate
-    // For demo purposes, we'll simulate a successful login with mock data
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const { data, error } = await getUserProfile(userCredential.user.uid);
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) {
+        return { success: false, error };
+      }
 
-    // Check credentials (very basic simulation)
-    if (email && password) {
-      const userData = {
-        id: '123',
-        email,
-        name: email.split('@')[0],
-        role: email.includes('admin') ? 'admin' : 'user',
-      };
-
-      // Save to state and localStorage
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
+      setUserProfile(data);
       return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
     }
-
-    return {
-      success: false,
-      error: 'Invalid credentials'
-    };
   };
 
   // Register function
   const register = async (userData) => {
-    // In a real app, this would make an API call to register the user
-    // For demo purposes, we'll simulate a successful registration
+    try {
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        userData.email,
+        userData.password
+      );
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      const user = userCredential.user;
 
-    if (userData.email && userData.password) {
-      const newUser = {
-        id: Math.random().toString(36).substr(2, 9),
-        email: userData.email,
-        name: userData.name || userData.email.split('@')[0],
-        role: 'user',
+      // Determine if user is admin based on email
+      const isAdmin = ADMIN_EMAILS.includes(userData.email.toLowerCase());
+      const role = isAdmin ? 'admin' : 'operator';
+
+      // Create business document
+      const businessData = {
+        name: userData.businessName,
+        state: userData.state,
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+        users: [{
+          userId: user.uid,
+          role: 'owner',
+          permissions: ['read', 'write'],
+          email: userData.email
+        }]
       };
 
-      // Save to state and localStorage
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      return { success: true };
-    }
+      // Add business to the appropriate collection based on state
+      const businessRef = await addDoc(
+        collection(db, `businesses-${userData.state.toLowerCase()}`),
+        businessData
+      );
 
-    return {
-      success: false,
-      error: 'Invalid user data'
-    };
+      // Create user document
+      const userDocRef = doc(db, 'users', user.uid);
+      const userProfileData = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        role: role,
+        createdAt: serverTimestamp(),
+        agreedToTerms: userData.agreeToTerms,
+        isLegalAgent: userData.isLegalAgent,
+        businesses: [{
+          businessId: businessRef.id,
+          role: 'owner',
+          state: userData.state
+        }]
+      };
+
+      // If admin, grant access to both states
+      if (isAdmin) {
+        userProfileData.accessibleStates = ['NM', 'CO'];
+      } else {
+        userProfileData.accessibleStates = [userData.state];
+      }
+
+      await setDoc(userDocRef, userProfileData);
+
+      // Set user profile in state
+      setUserProfile(userProfileData);
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   };
 
   // Logout function
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUserProfile(null);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   };
 
   // Check if user is authenticated
   const isAuthenticated = () => {
-    return !!user;
+    return !!currentUser;
   };
 
   // Check if user has a specific role
   const hasRole = (role) => {
-    return user && user.role === role;
+    return userProfile && userProfile.role === role;
+  };
+
+  // Check if user has access to a specific state
+  const hasStateAccess = (state) => {
+    if (!userProfile) return false;
+
+    // Admins have access to all states
+    if (userProfile.role === 'admin') return true;
+
+    // Check if user has access to the specified state
+    return userProfile.accessibleStates && userProfile.accessibleStates.includes(state);
   };
 
   const value = {
-    user,
+    currentUser,
+    userProfile,
     loading,
     login,
     register,
     logout,
     isAuthenticated,
-    hasRole
+    hasRole,
+    hasStateAccess
   };
 
   return (
