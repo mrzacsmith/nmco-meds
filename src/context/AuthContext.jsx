@@ -16,6 +16,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
+import { useDomain } from '../contexts/DomainContext';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -61,6 +62,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const domain = useDomain();
 
   // Listen for auth state changes
   useEffect(() => {
@@ -81,26 +83,6 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
-  // Login function
-  const login = async (email, password) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const { data, error } = await getUserProfile(userCredential.user.uid);
-
-      if (error) {
-        return { success: false, error };
-      }
-
-      setUserProfile(data);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  };
-
   // Register function
   const register = async (userData) => {
     try {
@@ -113,15 +95,18 @@ export const AuthProvider = ({ children }) => {
 
       const user = userCredential.user;
 
-      // Default role is operator
+      // Set default role as operator
       const role = 'operator';
+
+      // Get state from domain
+      const state = domain.state || 'NM';
 
       // Create business document if user is registering as a business owner
       let businessRef = null;
       if (userData.businessName) {
         const businessData = {
           name: userData.businessName,
-          state: userData.state,
+          state: state,
           createdAt: serverTimestamp(),
           createdBy: user.uid,
           users: [{
@@ -134,7 +119,7 @@ export const AuthProvider = ({ children }) => {
 
         // Add business to the appropriate collection based on state
         businessRef = await addDoc(
-          collection(db, `businesses-${userData.state.toLowerCase()}`),
+          collection(db, `businesses-${state.toLowerCase()}`),
           businessData
         );
       }
@@ -149,7 +134,7 @@ export const AuthProvider = ({ children }) => {
         createdAt: serverTimestamp(),
         agreedToTerms: userData.agreeToTerms,
         isLegalAgent: userData.isLegalAgent || false,
-        accessibleStates: [userData.state]
+        accessibleStates: [state]
       };
 
       // Add business to user profile if created
@@ -157,7 +142,7 @@ export const AuthProvider = ({ children }) => {
         userProfileData.businesses = [{
           businessId: businessRef.id,
           role: 'owner',
-          state: userData.state
+          state: state
         }];
       }
 
@@ -166,6 +151,26 @@ export const AuthProvider = ({ children }) => {
       // Set user profile in state
       setUserProfile(userProfileData);
 
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  };
+
+  // Login function
+  const login = async (email, password) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const { data, error } = await getUserProfile(userCredential.user.uid);
+
+      if (error) {
+        return { success: false, error };
+      }
+
+      setUserProfile(data);
       return { success: true };
     } catch (error) {
       return {

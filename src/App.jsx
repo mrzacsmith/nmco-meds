@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { DomainProvider } from './context/DomainContext'
 import { AuthProvider } from './context/AuthContext'
 import ScrollToTop from './components/ScrollToTop'
+import { ProtectedRoute } from './components/ProtectedRoute'
 
 // Import route components
 import Home from './routes/Home'
@@ -30,7 +31,14 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route
+              path="/dashboard/*"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/admin" element={<Admin />} />
             <Route path="/dispensaries" element={<Dispensaries />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />

@@ -10,7 +10,9 @@ import {
   where,
   getFirestore,
   doc,
-  getDoc
+  getDoc,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -35,6 +37,15 @@ export default function Dashboard() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+
+  // Add new state for location form
+  const [newLocation, setNewLocation] = useState({
+    companyName: '',
+    address: '',
+    phone: '',
+    contactName: '',
+    contactEmail: '',
+  });
 
   const db = getFirestore();
   const functions = getFunctions();
@@ -168,6 +179,39 @@ export default function Dashboard() {
   // Check if user has access to the selected state
   const canAccessState = hasStateAccess(selectedState);
 
+  // Add location handler
+  const handleAddLocation = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const locationRef = collection(db, `businesses-${selectedState.toLowerCase()}`);
+      await addDoc(locationRef, {
+        ...newLocation,
+        createdAt: serverTimestamp(),
+        createdBy: currentUser.uid,
+        state: selectedState,
+        status: 'pending',
+        type: 'Dispensary'
+      });
+
+      setNewLocation({
+        companyName: '',
+        address: '',
+        phone: '',
+        contactName: '',
+        contactEmail: '',
+      });
+      setInviteSuccess('Location added successfully');
+    } catch (err) {
+      console.error('Error adding location:', err);
+      setError('Failed to add location. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="min-h-screen bg-background py-8">
@@ -210,6 +254,15 @@ export default function Dashboard() {
                     >
                       Recent Activity
                     </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'subscription'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('subscription')}
+                    >
+                      Subscription
+                    </button>
                   </>
                 )}
 
@@ -233,6 +286,15 @@ export default function Dashboard() {
                       onClick={() => setActiveTab('analytics')}
                     >
                       Analytics
+                    </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'addLocation'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('addLocation')}
+                    >
+                      Add Location
                     </button>
                   </>
                 )}
@@ -416,6 +478,25 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* Subscription Tab - Only for regular users */}
+              {activeTab === 'subscription' && !isAdmin && (
+                <div>
+                  <h2 className="text-xl font-semibold text-dark mb-6">Manage Subscription</h2>
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <div className="max-w-2xl">
+                      <h3 className="text-lg font-medium mb-4">Current Plan</h3>
+                      {/* Add subscription management UI here */}
+                      <button
+                        onClick={() => navigate(getLink('/subscription'))}
+                        className="px-4 py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300"
+                      >
+                        Manage Plan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Admin-specific Users Tab */}
               {activeTab === 'users' && isAdmin && (
                 <div>
@@ -431,26 +512,131 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Admin-specific Analytics Tab */}
+              {/* Admin Analytics Tab - Single container */}
               {activeTab === 'analytics' && isAdmin && (
                 <div>
                   <h2 className="text-xl font-semibold text-dark mb-6">Analytics Dashboard</h2>
                   <div className="bg-gray-50 p-6 rounded-lg">
-                    <p className="text-gray-600">View analytics for both NM and CO platforms.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                      <div className="bg-white p-4 rounded shadow">
-                        <h3 className="font-medium text-lg mb-2">New Mexico</h3>
-                        <p>Total Businesses: 24</p>
-                        <p>Active Users: 56</p>
-                        <p>Monthly Views: 12,450</p>
-                      </div>
-                      <div className="bg-white p-4 rounded shadow">
-                        <h3 className="font-medium text-lg mb-2">Colorado</h3>
-                        <p>Total Businesses: 36</p>
-                        <p>Active Users: 78</p>
-                        <p>Monthly Views: 18,320</p>
+                    <p className="text-gray-600 mb-4">Platform Analytics Overview</p>
+                    <div className="bg-white p-4 rounded shadow">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <h3 className="font-medium text-lg mb-2">New Mexico</h3>
+                          <p>Total Businesses: 24</p>
+                          <p>Active Users: 56</p>
+                          <p>Monthly Views: 12,450</p>
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-lg mb-2">Colorado</h3>
+                          <p>Total Businesses: 36</p>
+                          <p>Active Users: 78</p>
+                          <p>Monthly Views: 18,320</p>
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin Add Location Tab */}
+              {activeTab === 'addLocation' && isAdmin && (
+                <div>
+                  <h2 className="text-xl font-semibold text-dark mb-6">Add New Location</h2>
+
+                  {error && (
+                    <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+                      <p>{error}</p>
+                    </div>
+                  )}
+
+                  {inviteSuccess && (
+                    <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700">
+                      <p>{inviteSuccess}</p>
+                    </div>
+                  )}
+
+                  <div className="max-w-2xl bg-gray-50 p-6 rounded-lg">
+                    <form onSubmit={handleAddLocation} className="space-y-4">
+                      <div>
+                        <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+                          Company Name
+                        </label>
+                        <input
+                          id="companyName"
+                          type="text"
+                          value={newLocation.companyName}
+                          onChange={(e) => setNewLocation({ ...newLocation, companyName: e.target.value })}
+                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
+                          Address
+                        </label>
+                        <input
+                          id="address"
+                          type="text"
+                          value={newLocation.address}
+                          onChange={(e) => setNewLocation({ ...newLocation, address: e.target.value })}
+                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone Number
+                        </label>
+                        <input
+                          id="phone"
+                          type="tel"
+                          value={newLocation.phone}
+                          onChange={(e) => setNewLocation({ ...newLocation, phone: e.target.value })}
+                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-1">
+                          Contact Name
+                        </label>
+                        <input
+                          id="contactName"
+                          type="text"
+                          value={newLocation.contactName}
+                          onChange={(e) => setNewLocation({ ...newLocation, contactName: e.target.value })}
+                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                          Contact Email
+                        </label>
+                        <input
+                          id="contactEmail"
+                          type="email"
+                          value={newLocation.contactEmail}
+                          onChange={(e) => setNewLocation({ ...newLocation, contactEmail: e.target.value })}
+                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <button
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300"
+                        >
+                          {isLoading ? 'Adding Location...' : 'Add Location'}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               )}
