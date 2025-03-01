@@ -16,7 +16,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
-import { useDomain } from '../contexts/DomainContext';
+import { useDomain } from './DomainContext';
 
 // Firebase configuration
 const firebaseConfig = {
