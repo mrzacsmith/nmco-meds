@@ -12,10 +12,14 @@ import {
   doc,
   getDoc,
   addDoc,
-  serverTimestamp
+  updateDoc,
+  serverTimestamp,
+  deleteDoc,
+  onSnapshot,
+  increment
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaBuilding, FaMapMarked, FaCity, FaMountain, FaTree, FaPencilAlt, FaTrashAlt, FaCopy } from 'react-icons/fa';
 import { NM, CO } from '@state-icons/react';
 
 // Common cities in NM and CO
@@ -55,7 +59,7 @@ export default function Dashboard() {
   const isAdmin = userProfile && userProfile.role === 'admin';
 
   // Set different default tabs for admin vs regular users
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'users' : 'businesses');
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'analytics' : 'businesses');
   const [businesses, setBusinesses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -70,6 +74,8 @@ export default function Dashboard() {
   // Add new state for location form
   const [selectedState, setSelectedState] = useState('New Mexico');
   const [isMultiLocation, setIsMultiLocation] = useState(false);
+  const [existingBusinesses, setExistingBusinesses] = useState([]);
+  const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [locationFormData, setLocationFormData] = useState({
     companyName: '',
     street: '',
@@ -82,8 +88,21 @@ export default function Dashboard() {
     locationPhone: '',
     websiteUrl: ''
   });
-  const [existingBusinesses, setExistingBusinesses] = useState([]);
-  const [filteredBusinesses, setFilteredBusinesses] = useState([]);
+
+  // Add state for Update Location feature
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  // Add new state for editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  // Add these state variables after other useState declarations
+  const [stats, setStats] = useState({
+    NM: { locations: 0, operators: 0 },
+    CO: { locations: 0, operators: 0 }
+  });
 
   const db = getFirestore();
   const functions = getFunctions();
@@ -266,7 +285,22 @@ export default function Dashboard() {
   // Check if user has access to the selected state
   const canAccessState = hasStateAccess(domain.state);
 
-  // Add location handler
+  // Replace the fetch stats effect with real-time listener
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const statsRef = doc(db, 'stats', 'platform-stats');
+    const unsubscribe = onSnapshot(statsRef, (doc) => {
+      if (doc.exists()) {
+        setStats(doc.data());
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [isAdmin, db]);
+
+  // Update handleAddLocation to include stats update
   const handleAddLocation = async (e) => {
     e.preventDefault();
     setError('');
@@ -282,8 +316,6 @@ export default function Dashboard() {
         ...locationFormData,
         state: selectedState,
         isMultiLocation,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.uid,
         address: {
@@ -315,26 +347,31 @@ export default function Dashboard() {
 
       const businessesCollection = `businesses-${selectedState.toLowerCase().replace(' ', '-')}`;
 
-      if (isMultiLocation && locationFormData.existingBusinessId) {
-        // Add location to existing business
-        const businessRef = doc(db, businessesCollection, locationFormData.existingBusinessId);
-        const locationsRef = collection(businessRef, 'locations');
-        await addDoc(locationsRef, locationData);
-      } else {
-        // Create new business record
-        const businessRef = await addDoc(collection(db, businessesCollection), locationData);
-
-        if (isMultiLocation) {
-          // If it's a new multi-location business, create a locations subcollection
-          // and add the first location
-          const locationsRef = collection(businessRef, 'locations');
-          await addDoc(locationsRef, {
-            ...locationData,
-            isMainLocation: true
-          });
-        }
+      // Update stats when adding a new location
+      if (!isEditing) {
+        const stateKey = selectedState === 'New Mexico' ? 'NM' : 'CO';
+        const statsRef = doc(db, 'stats', 'platform-stats');
+        await updateDoc(statsRef, {
+          [`${stateKey}.locations`]: increment(1)
+        });
       }
 
+      if (isEditing && editingId) {
+        // Update existing record
+        const businessRef = doc(db, businessesCollection, editingId);
+        await updateDoc(businessRef, locationData);
+        setInviteSuccess('Location updated successfully');
+      } else {
+        // Create new record
+        await addDoc(collection(db, businessesCollection), {
+          ...locationData,
+          createdAt: serverTimestamp(),
+          createdBy: currentUser.uid,
+        });
+        setInviteSuccess('Location added successfully');
+      }
+
+      // Reset form
       setLocationFormData({
         companyName: '',
         street: '',
@@ -347,12 +384,131 @@ export default function Dashboard() {
         locationPhone: '',
         websiteUrl: ''
       });
-      setInviteSuccess('Location added successfully');
+      setIsEditing(false);
+      setEditingId(null);
     } catch (err) {
-      console.error('Error adding location:', err);
-      setError(err.message || 'Failed to add location');
+      console.error('Error managing location:', err);
+      setError(err.message || 'Failed to manage location');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLocationSearch = async (searchTerm) => {
+    if (!selectedState || searchTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const businessesRef = collection(db, `businesses-${selectedState.toLowerCase().replace(' ', '-')}`);
+      const searchTermLower = searchTerm.toLowerCase();
+
+      // Get all businesses and filter client-side for better search experience
+      const snapshot = await getDocs(businessesRef);
+
+      const results = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(business => {
+          // Search in company name
+          const nameMatch = business.companyName?.toLowerCase().includes(searchTermLower);
+
+          // Search in city
+          const cityMatch = business.address?.city?.toLowerCase().includes(searchTermLower);
+
+          // Search in contact info
+          const contactMatch =
+            business.contact?.name?.toLowerCase().includes(searchTermLower) ||
+            business.contact?.email?.toLowerCase().includes(searchTermLower) ||
+            business.contact?.phone?.includes(searchTerm) ||
+            business.locationPhone?.includes(searchTerm);
+
+          return nameMatch || cityMatch || contactMatch;
+        });
+
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Error searching locations:', err);
+      setSearchError('Failed to search locations');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleEditLocation = (business) => {
+    // Set form data for editing
+    setLocationFormData({
+      companyName: business.companyName || '',
+      street: business.address?.street || '',
+      suite: business.address?.suite || '',
+      city: business.address?.city || '',
+      zipCode: business.address?.zipCode || '',
+      contactName: business.contact?.name || '',
+      contactEmail: business.contact?.email || '',
+      contactPhone: business.contact?.phone || '',
+      locationPhone: business.locationPhone || '',
+      websiteUrl: business.websiteUrl || ''
+    });
+    setIsEditing(true);
+    setEditingId(business.id);
+    setActiveTab('addLocation');
+  };
+
+  const handleDuplicateLocation = (business) => {
+    // Set form data but don't set editing state
+    setLocationFormData({
+      companyName: business.companyName || '',
+      street: business.address?.street || '',
+      suite: business.address?.suite || '',
+      city: business.address?.city || '',
+      zipCode: business.address?.zipCode || '',
+      contactName: business.contact?.name || '',
+      contactEmail: business.contact?.email || '',
+      contactPhone: business.contact?.phone || '',
+      locationPhone: business.locationPhone || '',
+      websiteUrl: business.websiteUrl || ''
+    });
+    setIsEditing(false);
+    setEditingId(null);
+    setActiveTab('addLocation');
+  };
+
+  // Update handleDeleteLocation to include stats update
+  const handleDeleteLocation = async (businessId) => {
+    if (!selectedState || !businessId) return;
+
+    if (!window.confirm('Are you sure you want to delete this location? This action cannot be undone.')) {
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const businessRef = doc(db, `businesses-${selectedState.toLowerCase().replace(' ', '-')}`, businessId);
+      await deleteDoc(businessRef);
+
+      // Update stats when deleting a location
+      const stateKey = selectedState === 'New Mexico' ? 'NM' : 'CO';
+      const statsRef = doc(db, 'stats', 'platform-stats');
+      await updateDoc(statsRef, {
+        [`${stateKey}.locations`]: increment(-1)
+      });
+
+      // Remove from search results
+      setSearchResults(prev => prev.filter(b => b.id !== businessId));
+      setInviteSuccess('Location deleted successfully');
+    } catch (err) {
+      console.error('Error deleting location:', err);
+      setSearchError('Failed to delete location');
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -414,15 +570,6 @@ export default function Dashboard() {
                 {isAdmin && (
                   <>
                     <button
-                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'users'
-                        ? 'border-b-2 border-accent text-accent'
-                        : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      onClick={() => setActiveTab('users')}
-                    >
-                      Manage Users
-                    </button>
-                    <button
                       className={`px-6 py-4 text-sm font-medium ${activeTab === 'analytics'
                         ? 'border-b-2 border-accent text-accent'
                         : 'text-gray-500 hover:text-gray-700'
@@ -440,10 +587,28 @@ export default function Dashboard() {
                     >
                       Add Location
                     </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'updateLocation'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('updateLocation')}
+                    >
+                      Search
+                    </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'users'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('users')}
+                    >
+                      Manage Users
+                    </button>
                   </>
                 )}
 
-                {/* Common tabs for all users */}
+                {/* Common tab for all users */}
                 <button
                   className={`px-6 py-4 text-sm font-medium ${activeTab === 'settings'
                     ? 'border-b-2 border-accent text-accent'
@@ -452,15 +617,6 @@ export default function Dashboard() {
                   onClick={() => setActiveTab('settings')}
                 >
                   Account Settings
-                </button>
-                <button
-                  className={`px-6 py-4 text-sm font-medium ${activeTab === 'invite'
-                    ? 'border-b-2 border-accent text-accent'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  onClick={() => setActiveTab('invite')}
-                >
-                  Invite Users
                 </button>
               </nav>
             </div>
@@ -641,41 +797,75 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Admin-specific Users Tab */}
-              {activeTab === 'users' && isAdmin && (
-                <div>
-                  <h2 className="text-xl font-semibold text-dark mb-6">Manage Users</h2>
-                  <div className="bg-gray-50 p-6 rounded-lg">
-                    <p className="text-gray-600">This section allows you to manage all users across both NM and CO states.</p>
-                    <div className="mt-4">
-                      <button className="px-4 py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300">
-                        View All Users
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Admin Analytics Tab - Single container */}
+              {/* Admin Analytics Tab */}
               {activeTab === 'analytics' && isAdmin && (
                 <div>
-                  <h2 className="text-xl font-semibold text-dark mb-6">Analytics Dashboard</h2>
-                  <div className="bg-gray-50 p-6 rounded-lg">
-                    <p className="text-gray-600 mb-4">Platform Analytics Overview</p>
-                    <div className="bg-white p-4 rounded shadow">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <h3 className="font-medium text-lg mb-2">New Mexico</h3>
-                          <p>Total Businesses: 24</p>
-                          <p>Active Users: 56</p>
+                  <div className="grid grid-cols-2 gap-8">
+                    {/* New Mexico Column */}
+                    <div className="bg-white p-6 rounded shadow space-y-6" style={{ border: '3px solid #e5e7eb', borderLeft: '3px solid #FFD700' }}>
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-lg">New Mexico</h3>
+                        <div className="space-y-2">
+                          <p>Locations: {stats.NM.locations}</p>
+                          <p>Operators: {stats.NM.operators}</p>
                           <p>Monthly Views: 12,450</p>
                         </div>
-                        <div>
-                          <h3 className="font-medium text-lg mb-2">Colorado</h3>
-                          <p>Total Businesses: 36</p>
-                          <p>Active Users: 78</p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Basic</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Elite</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Enterprise</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                      </div>
+
+                      <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
+                        Graph Placeholder
+                      </div>
+                    </div>
+
+                    {/* Colorado Column */}
+                    <div className="bg-white p-6 rounded shadow space-y-6" style={{ border: '3px solid #e5e7eb', borderLeft: '3px solid #002868' }}>
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-lg">Colorado</h3>
+                        <div className="space-y-2">
+                          <p>Locations: {stats.CO.locations}</p>
+                          <p>Operators: {stats.CO.operators}</p>
                           <p>Monthly Views: 18,320</p>
                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Basic</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Elite</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded">
+                          <p className="font-medium mb-2">Enterprise</p>
+                          <p>Monthly: $X</p>
+                          <p>Annual: $Y (Save Z%)</p>
+                        </div>
+                      </div>
+
+                      <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
+                        Graph Placeholder
                       </div>
                     </div>
                   </div>
@@ -685,7 +875,9 @@ export default function Dashboard() {
               {/* Admin Add Location Tab */}
               {activeTab === 'addLocation' && isAdmin && (
                 <div>
-                  <h2 className="text-xl font-semibold text-dark mb-6">Add New Location</h2>
+                  <h2 className="text-xl font-semibold text-dark mb-6">
+                    {isEditing ? 'Update Location' : 'Add New Location'}
+                  </h2>
 
                   {error && (
                     <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
@@ -971,7 +1163,7 @@ export default function Dashboard() {
                           disabled={isLoading}
                           className="w-full py-2 bg-accent text-white rounded-md hover:bg-accent-dark transition duration-300 disabled:opacity-50"
                         >
-                          {isLoading ? 'Adding Location...' : 'Add Location'}
+                          {isLoading ? (isEditing ? 'Updating Location...' : 'Adding Location...') : (isEditing ? 'Update Location' : 'Add Location')}
                         </button>
                       </div>
                     </form>
@@ -983,7 +1175,7 @@ export default function Dashboard() {
               {activeTab === 'settings' && (
                 <div>
                   <h2 className="text-xl font-semibold text-dark mb-6">Account Settings</h2>
-                  <div className="max-w-2xl">
+                  <div className="max-w-2xl space-y-8">
                     <div className="bg-gray-50 p-6 rounded-lg">
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Profile Information</h3>
                       {userProfile && (
@@ -1015,119 +1207,286 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
+
+                    {/* Invite Users Section - Now part of Account Settings */}
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Invite Users</h3>
+                      {inviteError && (
+                        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+                          <p>{inviteError}</p>
+                        </div>
+                      )}
+
+                      {inviteSuccess && (
+                        <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700">
+                          <p>{inviteSuccess}</p>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleInviteUser} className="space-y-4">
+                        <div>
+                          <label htmlFor="inviteEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            id="inviteEmail"
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                            placeholder="user@example.com"
+                            required
+                          />
+                        </div>
+
+                        {/* Business selection - Only for regular users */}
+                        {!isAdmin && (
+                          <div>
+                            <label htmlFor="inviteBusinessId" className="block text-sm font-medium text-gray-700 mb-1">
+                              Business
+                            </label>
+                            <select
+                              id="inviteBusinessId"
+                              value={inviteBusinessId}
+                              onChange={(e) => setInviteBusinessId(e.target.value)}
+                              className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                              required
+                            >
+                              <option value="">Select a business</option>
+                              {businesses
+                                .filter(b => hasRole('admin') || b.userRole === 'owner')
+                                .map(business => (
+                                  <option key={business.id} value={business.id}>
+                                    {business.name}
+                                  </option>
+                                ))
+                              }
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Role selection - Different options for admin */}
+                        <div>
+                          <label htmlFor="inviteRole" className="block text-sm font-medium text-gray-700 mb-1">
+                            Role
+                          </label>
+                          <select
+                            id="inviteRole"
+                            value={inviteRole}
+                            onChange={(e) => setInviteRole(e.target.value)}
+                            className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          >
+                            {isAdmin ? (
+                              <>
+                                <option value="operator">Operator</option>
+                                <option value="admin">Admin</option>
+                              </>
+                            ) : (
+                              <option value="operator">Operator</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* State selection - Only for admin users */}
+                        {isAdmin && (
+                          <div>
+                            <label htmlFor="inviteState" className="block text-sm font-medium text-gray-700 mb-1">
+                              State Access
+                            </label>
+                            <select
+                              id="inviteState"
+                              className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                            >
+                              <option value="NM">New Mexico</option>
+                              <option value="CO">Colorado</option>
+                              <option value="both">Both States</option>
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <button
+                            type="submit"
+                            disabled={inviteLoading}
+                            className="w-full py-2 bg-accent text-white rounded-md hover:bg-accent-dark transition duration-300 disabled:opacity-50"
+                          >
+                            {inviteLoading ? 'Sending Invitation...' : 'Invite User'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Invite Users Tab - For all users but with different forms */}
-              {activeTab === 'invite' && (
+              {/* Update Location Tab - For admins */}
+              {activeTab === 'updateLocation' && isAdmin && (
                 <div>
-                  <h2 className="text-xl font-semibold text-dark mb-6">Invite Users</h2>
-
-                  {inviteError && (
-                    <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
-                      <p>{inviteError}</p>
-                    </div>
-                  )}
-
-                  {inviteSuccess && (
-                    <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700">
-                      <p>{inviteSuccess}</p>
-                    </div>
-                  )}
-
-                  <div className="max-w-2xl bg-gray-50 p-6 rounded-lg">
-                    <form onSubmit={handleInviteUser} className="space-y-4">
-                      <div>
-                        <label htmlFor="inviteEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                          Email Address
-                        </label>
-                        <input
-                          id="inviteEmail"
-                          type="email"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          placeholder="user@example.com"
-                          required
-                        />
-                      </div>
-
-                      {/* Business selection - Only for regular users */}
-                      {!isAdmin && (
-                        <div>
-                          <label htmlFor="inviteBusinessId" className="block text-sm font-medium text-gray-700 mb-1">
-                            Business
-                          </label>
-                          <select
-                            id="inviteBusinessId"
-                            value={inviteBusinessId}
-                            onChange={(e) => setInviteBusinessId(e.target.value)}
-                            className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                            required
-                          >
-                            <option value="">Select a business</option>
-                            {businesses
-                              .filter(b => hasRole('admin') || b.userRole === 'owner')
-                              .map(business => (
-                                <option key={business.id} value={business.id}>
-                                  {business.name}
-                                </option>
-                              ))
-                            }
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Role selection - Different options for admin */}
-                      <div>
-                        <label htmlFor="inviteRole" className="block text-sm font-medium text-gray-700 mb-1">
-                          Role
-                        </label>
-                        <select
-                          id="inviteRole"
-                          value={inviteRole}
-                          onChange={(e) => setInviteRole(e.target.value)}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                        >
-                          {isAdmin ? (
-                            <>
-                              <option value="operator">Operator</option>
-                              <option value="admin">Admin</option>
-                            </>
-                          ) : (
-                            <option value="operator">Operator</option>
-                          )}
-                        </select>
-                      </div>
-
-                      {/* State selection - Only for admin users */}
-                      {isAdmin && (
-                        <div>
-                          <label htmlFor="inviteState" className="block text-sm font-medium text-gray-700 mb-1">
-                            State Access
-                          </label>
-                          <select
-                            id="inviteState"
-                            className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          >
-                            <option value="NM">New Mexico</option>
-                            <option value="CO">Colorado</option>
-                            <option value="both">Both States</option>
-                          </select>
-                        </div>
-                      )}
-
-                      <div>
+                  <div className="max-w-4xl bg-gray-50 p-6 rounded-lg">
+                    {/* Search Box */}
+                    <div className="mb-6">
+                      <label htmlFor="searchTerm" className="block text-sm font-medium text-gray-700 mb-2">
+                        Search Locations
+                      </label>
+                      <div className="flex items-center gap-4 mb-4">
                         <button
-                          type="submit"
-                          disabled={inviteLoading}
-                          className="w-full py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300"
+                          type="button"
+                          onClick={() => setSelectedState('New Mexico')}
+                          className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
+                            ? 'bg-accent text-white border-accent'
+                            : 'border-gray-300 hover:border-accent'
+                            }`}
                         >
-                          {inviteLoading ? 'Sending Invitation...' : 'Invite User'}
+                          <NM className="w-8 h-8" />
+                          <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                            New Mexico
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedState('Colorado')}
+                          className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
+                            ? 'bg-accent text-white border-accent'
+                            : 'border-gray-300 hover:border-accent'
+                            }`}
+                        >
+                          <CO className="w-8 h-8" />
+                          <span className="tooltip invisible group-hover:visible absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                            Colorado
+                          </span>
                         </button>
                       </div>
-                    </form>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          id="searchTerm"
+                          className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent pr-10"
+                          placeholder="Search by company name, city, contact info..."
+                          onChange={(e) => handleLocationSearch(e.target.value)}
+                        />
+                        <button
+                          onClick={() => {
+                            document.getElementById('searchTerm').value = '';
+                            handleLocationSearch('');
+                          }}
+                          className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      {searchError && (
+                        <p className="mt-2 text-sm text-red-600">{searchError}</p>
+                      )}
+                    </div>
+
+                    {/* Search Results */}
+                    <div className="overflow-x-auto">
+                      {searchLoading ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-600">Loading results...</p>
+                        </div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-600">No locations found. Try a different search term.</p>
+                        </div>
+                      ) : (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                                Business Information
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                                Contact Details
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                                Contact Person
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {searchResults.map((business) => (
+                              <tr key={business.id}>
+                                <td className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {business.websiteUrl ? (
+                                        <a
+                                          href={business.websiteUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="hover:text-accent"
+                                        >
+                                          {business.companyName}
+                                        </a>
+                                      ) : (
+                                        business.companyName
+                                      )}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {business.address?.street} {business.address?.suite}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {business.address?.city}, {business.address?.zipCode}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <div className="text-sm text-gray-500">{business.locationPhone}</div>
+                                    <div className="text-sm text-gray-500">{business.websiteUrl}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {business.locations ? `${business.locations.length} locations` : '1 location'}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <div className="text-sm text-gray-900">{business.contact?.name}</div>
+                                    <div className="text-sm text-gray-500">{business.contact?.email}</div>
+                                    <div className="text-sm text-gray-500">{business.contact?.phone}</div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <div className="flex flex-col space-y-2">
+                                    <button
+                                      onClick={() => handleEditLocation(business)}
+                                      className="text-accent hover:text-accent-dark"
+                                      title="Edit"
+                                    >
+                                      <FaPencilAlt className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDuplicateLocation(business)}
+                                      className="text-accent hover:text-accent-dark"
+                                      title="Duplicate"
+                                    >
+                                      <FaCopy className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Are you sure you want to delete ${business.companyName}? This action cannot be undone.`)) {
+                                          handleDeleteLocation(business.id);
+                                        }
+                                      }}
+                                      className="text-red-600 hover:text-red-900"
+                                      title="Delete"
+                                    >
+                                      <FaTrashAlt className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
