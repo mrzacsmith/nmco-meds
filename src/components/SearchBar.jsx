@@ -152,130 +152,125 @@ export function SearchBar({ className = '' }) {
       position: 'relative',
       marginTop: 0
     }}>
-      {/* Hero Section with Prussian Blue Background - Full Width */}
+      {/* Single container with Prussian Blue Gradient Background - Full Width */}
       <div style={{
-        backgroundColor: '#172A3A',
+        background: 'linear-gradient(135deg, #172A3A 0%, #508991 100%)',
         width: '100%',
         position: 'relative',
         paddingTop: '2rem',
         paddingBottom: '2rem'
       }}>
-        <div className="container mx-auto px-4 text-center text-white">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">
-            Find Cannabis in {domain.state}
-          </h1>
-          <p className="text-xl">
-            Discover the best dispensaries and products in {domain.state}
-          </p>
-        </div>
-      </div>
+        <div className="container mx-auto px-4">
+          {/* Heading Section */}
+          <div className="text-center text-white mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+              Find Cannabis in {domain.state}
+            </h1>
+            <p className="text-xl">
+              Discover the best dispensaries and products in {domain.state}
+            </p>
+          </div>
 
-      {/* Background container with Prussian blue - Full Width */}
-      <div style={{
-        backgroundColor: '#172A3A',
-        width: '100%',
-        position: 'relative',
-        paddingBottom: '2rem'
-      }}>
-        {/* Container for search - 80% width up to 1440px */}
-        <div className="mx-auto w-full max-w-[1440px] px-4" style={{ width: '80%' }}>
-          {/* Combined Search and Map Container */}
-          <div className="bg-white p-4 rounded-md shadow-md">
-            <h3 className="text-xl font-semibold mb-3">Search Cannabis Locations in {domain.state}</h3>
+          {/* Container for search - 80% width up to 1440px */}
+          <div className="mx-auto w-full max-w-[1440px] px-4" style={{ width: '80%' }}>
+            {/* Combined Search and Map Container */}
+            <div className="bg-white p-4 rounded-md shadow-md">
+              <h3 className="text-xl font-semibold mb-3">Search Cannabis Locations in {domain.state}</h3>
 
-            <div className="flex flex-col gap-4">
-              {/* Search Form Section */}
-              <div className="w-full">
-                <form onSubmit={handleSubmit} className="w-full">
-                  {/* Search Type Tabs */}
-                  <div className="flex mb-3 border-b border-gray-200">
-                    {searchTypes.map((type) => (
-                      <button
-                        key={type.id}
-                        type="button"
-                        className={`py-2 px-4 font-medium text-sm focus:outline-none ${searchType === type.id
-                          ? 'text-accent border-b-2 border-accent'
-                          : 'text-gray-500 hover:text-primary'
-                          }`}
-                        onClick={() => setSearchType(type.id)}
-                      >
-                        {type.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex flex-col gap-4">
+                {/* Search Form Section */}
+                <div className="w-full">
+                  <form onSubmit={handleSubmit} className="w-full">
+                    {/* Search Type Tabs */}
+                    <div className="flex mb-3 border-b border-gray-200">
+                      {searchTypes.map((type) => (
+                        <button
+                          key={type.id}
+                          type="button"
+                          className={`py-2 px-4 font-medium text-sm focus:outline-none ${searchType === type.id
+                            ? 'text-accent border-b-2 border-accent'
+                            : 'text-gray-500 hover:text-primary'
+                            }`}
+                          onClick={() => setSearchType(type.id)}
+                        >
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
 
-                  <div className="flex flex-col md:flex-row gap-3">
-                    {/* Location Input */}
-                    <div className="flex-grow">
-                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                        Location
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
+                    <div className="flex flex-col md:flex-row gap-3">
+                      {/* Location Input */}
+                      <div className="flex-grow">
+                        <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                          Location
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </div>
+                          <input
+                            type="text"
+                            name="location"
+                            id="location"
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                            placeholder={`City or Zip in ${domain.state}`}
+                            value={formData.location}
+                            onChange={handleChange}
+                          />
                         </div>
-                        <input
-                          type="text"
-                          name="location"
-                          id="location"
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          placeholder={`City or Zip in ${domain.state}`}
-                          value={formData.location}
-                          onChange={handleChange}
-                        />
+                      </div>
+
+                      {/* Keyword Input */}
+                      <div className="flex-grow">
+                        <label htmlFor="keyword" className="block text-sm font-medium text-gray-700 mb-1">
+                          Keyword (Optional)
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          </div>
+                          <input
+                            type="text"
+                            name="keyword"
+                            id="keyword"
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                            placeholder="Search by name, product, etc."
+                            value={formData.keyword}
+                            onChange={handleChange}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Search Button */}
+                      <div className="flex items-end">
+                        <button
+                          type="submit"
+                          className="w-full md:w-auto px-6 py-2 bg-mid hover:bg-accent text-white rounded-md transition duration-300 font-medium"
+                        >
+                          Search
+                        </button>
                       </div>
                     </div>
+                  </form>
+                </div>
 
-                    {/* Keyword Input */}
-                    <div className="flex-grow">
-                      <label htmlFor="keyword" className="block text-sm font-medium text-gray-700 mb-1">
-                        Keyword (Optional)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        </div>
-                        <input
-                          type="text"
-                          name="keyword"
-                          id="keyword"
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          placeholder="Search by name, product, etc."
-                          value={formData.keyword}
-                          onChange={handleChange}
-                        />
+                {/* Google Map Section */}
+                <div className="w-full mt-3">
+                  <h4 className="text-lg font-medium mb-2">Cannabis Locations in {domain.state}</h4>
+                  <div className="w-full h-[450px] rounded-md border border-gray-300" style={{ background: '#f0f0f0' }}>
+                    {!mapLoaded ? (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-gray-500">Loading map...</p>
                       </div>
-                    </div>
-
-                    {/* Search Button */}
-                    <div className="flex items-end">
-                      <button
-                        type="submit"
-                        className="w-full md:w-auto px-6 py-2 bg-mid hover:bg-accent text-white rounded-md transition duration-300 font-medium"
-                      >
-                        Search
-                      </button>
-                    </div>
+                    ) : (
+                      <div ref={mapRef} className="w-full h-full"></div>
+                    )}
                   </div>
-                </form>
-              </div>
-
-              {/* Google Map Section */}
-              <div className="w-full mt-3">
-                <h4 className="text-lg font-medium mb-2">Cannabis Locations in {domain.state}</h4>
-                <div className="w-full h-[450px] rounded-md border border-gray-300" style={{ background: '#f0f0f0' }}>
-                  {!mapLoaded ? (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-gray-500">Loading map...</p>
-                    </div>
-                  ) : (
-                    <div ref={mapRef} className="w-full h-full"></div>
-                  )}
                 </div>
               </div>
             </div>
