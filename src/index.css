@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme variables */
+:root {
+  /* Default theme */
+  --color-dark: #172A3A;      /* Prussian blue - for text, headers, footer bg */
+  --color-mid: #508991;       /* Blue Munsell - for secondary elements, buttons */
+  --color-light: #75DDDD;     /* Tiffany Blue - for accents, highlights */
+  --color-accent: #004346;    /* Midnight green - for borders, focused elements */
+  --color-background: #FFFFFF; /* White - main background */
+  --color-warm-accent: #E5C687; /* Ecru - warm accent for special highlights */
+  --color-white: #FFFFFF;     /* Pure white for text on dark backgrounds */
+}
+
+/* Custom styles */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-background);
+  color: var(--color-dark);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-mid);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Custom utility classes */
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+} 

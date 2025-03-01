@@ -19,14 +19,30 @@ export function meta({ matches }) {
 
 // Server-side authentication check
 export async function loader({ request }) {
-  // In a real implementation, we would check the session server-side
-  // For now, we'll rely on client-side auth check
-  return json({});
+  try {
+    // Import the requireAuth function
+    const { requireAuth } = await import('~/lib/auth-server');
+
+    // Check if the user is authenticated
+    const { userId, user } = await requireAuth(request, {
+      failureRedirect: '/login',
+    });
+
+    // Return the user data
+    return json({
+      userId,
+      userData: user,
+    });
+  } catch (error) {
+    // If there's an error with the server-side auth, fall back to client-side
+    console.error('Server-side auth error:', error);
+    return json({});
+  }
 }
 
 export default function Dashboard() {
   const domain = useDomain();
-  const { user, userProfile, isAuthenticated, loading } = useAuth();
+  const { user, userProfile, isAuthenticated, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [domainParam, setDomainParam] = useState(null);
@@ -106,10 +122,22 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             {/* Dashboard Header */}
             <div className="bg-primary text-white px-6 py-4">
-              <h1 className="text-2xl font-bold">Business Dashboard</h1>
-              <p className="text-sm opacity-80">
-                Welcome back, {userProfile?.displayName || user?.email}
-              </p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold">Business Dashboard</h1>
+                  <p className="text-sm opacity-80">
+                    Welcome back, {userProfile?.displayName || user?.email}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="px-4 py-2 bg-white text-primary rounded-md hover:bg-gray-100 transition duration-150 ease-in-out"
+                  >
+                    Admin Dashboard
+                  </Link>
+                )}
+              </div>
             </div>
 
             {/* Dashboard Navigation */}
@@ -118,8 +146,8 @@ export default function Dashboard() {
                 <button
                   onClick={() => setActiveTab('businesses')}
                   className={`px-6 py-3 border-b-2 font-medium text-sm ${activeTab === 'businesses'
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                 >
                   My Businesses
@@ -127,8 +155,8 @@ export default function Dashboard() {
                 <button
                   onClick={() => setActiveTab('account')}
                   className={`px-6 py-3 border-b-2 font-medium text-sm ${activeTab === 'account'
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                 >
                   Account Settings
@@ -136,8 +164,8 @@ export default function Dashboard() {
                 <button
                   onClick={() => setActiveTab('billing')}
                   className={`px-6 py-3 border-b-2 font-medium text-sm ${activeTab === 'billing'
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                 >
                   Subscription & Billing
@@ -197,10 +225,10 @@ export default function Dashboard() {
                               </p>
                               <div className="mt-1">
                                 <span className={`inline-block px-2 py-1 text-xs rounded-full ${business.planLevel === 'elite'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : business.planLevel === 'featured'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : business.planLevel === 'featured'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
                                   }`}>
                                   {business.planLevel === 'elite'
                                     ? 'Elite'
@@ -269,10 +297,10 @@ export default function Dashboard() {
                                 </p>
                                 <div className="mt-1">
                                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${business.planLevel === 'elite'
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : business.planLevel === 'featured'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : business.planLevel === 'featured'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-800'
                                     }`}>
                                     {business.planLevel === 'elite'
                                       ? 'Elite'
@@ -435,10 +463,10 @@ export default function Dashboard() {
                                 </p>
                                 <div className="mt-2">
                                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${business.planLevel === 'elite'
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : business.planLevel === 'featured'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : business.planLevel === 'featured'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-800'
                                     }`}>
                                     {business.planLevel === 'elite'
                                       ? 'Elite Plan'

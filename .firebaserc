@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "nmco-meds"
-  }
+  },
+  "targets": {
+    "nmco-meds": {
+      "hosting": {
+        "505meds": [
+          "505meds"
+        ],
+        "303meds": [
+          "303meds"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

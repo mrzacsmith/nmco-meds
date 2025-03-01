@@ -1,27 +1,41 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./app/**/{**,.client,.server}/**/*.{js,jsx,ts,tsx}'],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
-      colors: {
-        primary: '#172A3A', // Prussian blue
-        secondary: '#508991', // Blue Munsell
-        accent: '#75DDDD', // Tiffany Blue
-        dark: '#004346', // Midnight green
-        light: '#FFFFFF', // White
-        warmAccent: '#E5C687', // Ecru
-      },
       fontFamily: {
-        sans: [
-          'Inter',
-          'ui-sans-serif',
-          'system-ui',
-          'sans-serif',
-          'Apple Color Emoji',
-          'Segoe UI Emoji',
-          'Segoe UI Symbol',
-          'Noto Color Emoji',
-        ],
+        sans: ['Inter', 'sans-serif'],
+      },
+      colors: {
+        dark: {
+          DEFAULT: 'var(--color-dark, #172A3A)',
+        },
+        mid: {
+          DEFAULT: 'var(--color-mid, #508991)',
+        },
+        light: {
+          DEFAULT: 'var(--color-light, #75DDDD)',
+        },
+        accent: {
+          DEFAULT: 'var(--color-accent, #004346)',
+        },
+        background: {
+          DEFAULT: 'var(--color-background, #FFFFFF)',
+        },
+        warmAccent: {
+          DEFAULT: 'var(--color-warm-accent, #E5C687)',
+        },
+        white: {
+          DEFAULT: 'var(--color-white, #FFFFFF)',
+        },
+      },
+      boxShadow: {
+        custom: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        'custom-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+      },
+      borderRadius: {
+        xl: '1rem',
+        '2xl': '1.5rem',
       },
     },
   },

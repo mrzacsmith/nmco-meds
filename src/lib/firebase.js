@@ -7,7 +7,6 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
-  onAuthStateChanged,
 } from 'firebase/auth'
 import {
   getFirestore,
@@ -21,7 +20,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 
-// Firebase configuration using environment variables
+// Firebase configuration
 const firebaseConfig = {
   apiKey: 'AIzaSyCJn1kwD72StdEuDX7iAsbPVh7r68ATjEE',
   authDomain: 'nmco-meds.firebaseapp.com',
@@ -32,16 +31,9 @@ const firebaseConfig = {
 }
 
 // Initialize Firebase
-let app
-let auth
-let db
-
-// Initialize Firebase only in browser environment
-if (typeof window !== 'undefined') {
-  app = initializeApp(firebaseConfig)
-  auth = getAuth(app)
-  db = getFirestore(app)
-}
+const app = initializeApp(firebaseConfig)
+const auth = getAuth(app)
+const db = getFirestore(app)
 
 // Authentication functions
 export const loginWithEmail = async (email, password) => {
@@ -57,23 +49,13 @@ export const loginWithEmail = async (email, password) => {
 export const registerWithEmail = async (email, password, userData) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-    const user = userCredential.user
-
-    // Create user document in Firestore
-    await createUserProfile(user.uid, {
-      email: user.email,
-      displayName: userData.displayName || '',
-      role: 'operator', // Default role
-      states: userData.states || [],
-      businessIds: { co: [], nm: [] },
-      companyName: userData.companyName || '',
-      phone: userData.phone || '',
-      isMultiState: userData.isMultiState || false,
+    await createUserProfile(userCredential.user.uid, {
+      ...userData,
+      email,
       createdAt: Timestamp.now(),
       lastLogin: Timestamp.now(),
     })
-
-    return { user, error: null }
+    return { user: userCredential.user, error: null }
   } catch (error) {
     return { user: null, error: error.message }
   }
@@ -83,31 +65,25 @@ export const loginWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider()
     const userCredential = await signInWithPopup(auth, provider)
-    const user = userCredential.user
 
-    // Check if user exists in Firestore
-    const userDoc = await getDoc(doc(db, 'users', user.uid))
+    // Check if user profile exists
+    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid))
 
     if (!userDoc.exists()) {
-      // Create new user profile if first time login
-      await createUserProfile(user.uid, {
-        email: user.email,
-        displayName: user.displayName || '',
-        role: 'operator', // Default role
-        states: [],
-        businessIds: { co: [], nm: [] },
-        companyName: '',
-        phone: '',
-        isMultiState: false,
+      // Create user profile if it doesn't exist
+      await createUserProfile(userCredential.user.uid, {
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        photoURL: userCredential.user.photoURL,
         createdAt: Timestamp.now(),
         lastLogin: Timestamp.now(),
       })
     } else {
       // Update last login
-      await updateLastLogin(user.uid)
+      await updateLastLogin(userCredential.user.uid)
     }
 
-    return { user, error: null }
+    return { user: userCredential.user, error: null }
   } catch (error) {
     return { user: null, error: error.message }
   }
@@ -138,7 +114,7 @@ export const getUserProfile = async (userId) => {
     if (userDoc.exists()) {
       return { data: userDoc.data(), error: null }
     } else {
-      return { data: null, error: 'User not found' }
+      return { data: null, error: 'User profile not found' }
     }
   } catch (error) {
     return { data: null, error: error.message }
@@ -154,49 +130,18 @@ export const updateLastLogin = async (userId) => {
   }
 }
 
-// Get businesses for a user
-export const getUserBusinesses = async (userId) => {
+export const getBusinessesByState = async (state) => {
   try {
-    const { data: userData, error } = await getUserProfile(userId)
-    if (error) return { businesses: [], error }
-
-    const businesses = {
-      co: [],
-      nm: [],
-    }
-
-    // Get CO businesses
-    if (userData.businessIds.co && userData.businessIds.co.length > 0) {
-      for (const businessId of userData.businessIds.co) {
-        const businessDoc = await getDoc(doc(db, 'businesses-co', businessId))
-        if (businessDoc.exists()) {
-          businesses.co.push({ id: businessDoc.id, ...businessDoc.data() })
-        }
-      }
-    }
-
-    // Get NM businesses
-    if (userData.businessIds.nm && userData.businessIds.nm.length > 0) {
-      for (const businessId of userData.businessIds.nm) {
-        const businessDoc = await getDoc(doc(db, 'businesses-nm', businessId))
-        if (businessDoc.exists()) {
-          businesses.nm.push({ id: businessDoc.id, ...businessDoc.data() })
-        }
-      }
-    }
-
-    return { businesses, error: null }
+    const businessesQuery = query(collection(db, 'businesses'), where('state', '==', state))
+    const querySnapshot = await getDocs(businessesQuery)
+    const businesses = []
+    querySnapshot.forEach((doc) => {
+      businesses.push({ id: doc.id, ...doc.data() })
+    })
+    return { data: businesses, error: null }
   } catch (error) {
-    return { businesses: { co: [], nm: [] }, error: error.message }
+    return { data: [], error: error.message }
   }
-}
-
-// Auth state observer
-export const onAuthStateChange = (callback) => {
-  if (typeof window !== 'undefined') {
-    return onAuthStateChanged(auth, callback)
-  }
-  return () => {}
 }
 
 export { auth, db }
