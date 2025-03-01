@@ -17,6 +17,7 @@ import TermsOfService from './routes/TermsOfService'
 import StrainGuide from './routes/StrainGuide'
 import FAQ from './routes/FAQ'
 import MedicalCards from './routes/MedicalCards'
+import Subscription from './routes/Subscription'
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="/strain-guide" element={<StrainGuide />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/medical-cards" element={<MedicalCards />} />
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
