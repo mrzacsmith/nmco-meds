@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDomain } from '../context/DomainContext';
+import { useAuth } from '../context/AuthContext';
 
 export function NavBar() {
   const domain = useDomain();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [domainParam, setDomainParam] = useState(null);
 
@@ -30,6 +32,12 @@ export function NavBar() {
     return domainParam ? `${path}?domain=${domainParam}` : path;
   };
 
+  // Handle logout
+  const handleLogout = async () => {
+    await logout();
+    closeMenu();
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 py-4" style={{
       backgroundColor: '#172A3A',
@@ -43,7 +51,7 @@ export function NavBar() {
           {/* Logo - Takes 1/4 of the space */}
           <div className="w-1/4">
             <Link
-              to={getLink('/')}
+              to={getLink(user ? '/dashboard' : '/')}
               className="flex items-center"
               onClick={closeMenu}
             >
@@ -71,14 +79,23 @@ export function NavBar() {
             </div>
           </div>
 
-          {/* Login Button - Takes 1/4 of the space and aligns content to the right */}
+          {/* Login/Logout Button - Takes 1/4 of the space and aligns content to the right */}
           <div className="hidden md:flex w-1/4 justify-end">
-            <Link
-              to={getLink('/login')}
-              className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300"
-            >
-              Login
-            </Link>
+            {user ? (
+              <button
+                onClick={handleLogout}
+                className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300"
+              >
+                Logout
+              </button>
+            ) : (
+              <Link
+                to={getLink('/login')}
+                className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300"
+              >
+                Login
+              </Link>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -121,13 +138,22 @@ export function NavBar() {
               >
                 Dispensaries
               </Link>
-              <Link
-                to={getLink('/login')}
-                className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300 inline-block"
-                onClick={closeMenu}
-              >
-                Login
-              </Link>
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300 text-left"
+                >
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  to={getLink('/login')}
+                  className="border border-white text-white hover:bg-mid px-4 py-2 rounded transition duration-300 inline-block"
+                  onClick={closeMenu}
+                >
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         )}
