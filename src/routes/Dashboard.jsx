@@ -495,10 +495,21 @@ export default function Dashboard() {
   const handleDeleteLocation = async (businessId) => {
     if (!selectedState || !businessId) return;
 
-    if (!window.confirm('Are you sure you want to delete this location? This action cannot be undone.')) {
-      return;
-    }
+    const business = searchResults.find(b => b.id === businessId);
+    if (!business) return;
 
+    setModalConfig({
+      title: 'Delete Location',
+      message: `Are you sure you want to delete ${business.companyName}? This action cannot be undone.`,
+      confirmText: 'Delete Location',
+      type: 'danger',
+      onConfirm: () => confirmDeleteLocation(businessId)
+    });
+    setModalOpen(true);
+  };
+
+  const confirmDeleteLocation = async (businessId) => {
+    setModalOpen(false);
     setSearchLoading(true);
     setSearchError('');
 
@@ -1696,11 +1707,7 @@ export default function Dashboard() {
                                       <FaCopy className="w-4 h-4" />
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        if (window.confirm(`Are you sure you want to delete ${business.companyName}? This action cannot be undone.`)) {
-                                          handleDeleteLocation(business.id);
-                                        }
-                                      }}
+                                      onClick={() => handleDeleteLocation(business.id)}
                                       className="text-red-600 hover:text-red-900"
                                       title="Delete"
                                     >
