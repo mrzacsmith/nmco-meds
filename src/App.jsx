@@ -3,6 +3,7 @@ import { DomainProvider } from './context/DomainContext'
 import { AuthProvider } from './context/AuthContext'
 import ScrollToTop from './components/ScrollToTop'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { DynamicFavicon } from './components/DynamicFavicon'
 
 // Import route components
 import Home from './routes/Home'
@@ -25,6 +26,7 @@ function App() {
     <Router>
       <ScrollToTop />
       <DomainProvider>
+        <DynamicFavicon />
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Home />} />
