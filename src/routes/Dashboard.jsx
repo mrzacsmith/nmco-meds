@@ -20,7 +20,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeTab, setActiveTab] = useState('businesses');
+  const isAdmin = userProfile && userProfile.role === 'admin';
+
+  // Set different default tabs for admin vs regular users
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'users' : 'businesses');
   const [businesses, setBusinesses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,6 +55,12 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchBusinesses = async () => {
       if (!currentUser || !userProfile) return;
+
+      // Skip fetching businesses for admin users
+      if (isAdmin) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       setError('');
@@ -110,7 +119,7 @@ export default function Dashboard() {
     };
 
     fetchBusinesses();
-  }, [currentUser, userProfile, selectedState, db]);
+  }, [currentUser, userProfile, selectedState, db, isAdmin]);
 
   // Mock recent activity data
   const recentActivity = [
@@ -125,7 +134,7 @@ export default function Dashboard() {
   const handleInviteUser = async (e) => {
     e.preventDefault();
 
-    if (!inviteEmail || !inviteBusinessId) {
+    if (!inviteEmail || (!inviteBusinessId && !isAdmin)) {
       setInviteError('Please fill in all required fields');
       return;
     }
@@ -140,7 +149,8 @@ export default function Dashboard() {
         email: inviteEmail,
         businessId: inviteBusinessId,
         state: selectedState,
-        role: inviteRole
+        role: inviteRole,
+        isAdminInvite: isAdmin
       });
 
       setInviteSuccess(result.data.message || 'User successfully invited');
@@ -170,7 +180,8 @@ export default function Dashboard() {
               </div>
               {userProfile && (
                 <p className="text-gray-600 mt-2">
-                  Welcome, {userProfile.firstName} {userProfile.lastName} | Role: {userProfile.role} | State: {selectedState}
+                  Welcome, {userProfile.firstName} {userProfile.lastName} | Role: {userProfile.role}
+                  {!isAdmin && ` | State: ${selectedState}`}
                 </p>
               )}
             </div>
@@ -178,24 +189,55 @@ export default function Dashboard() {
             {/* Dashboard Tabs */}
             <div className="border-b">
               <nav className="flex">
-                <button
-                  className={`px-6 py-4 text-sm font-medium ${activeTab === 'businesses'
-                    ? 'border-b-2 border-accent text-accent'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  onClick={() => setActiveTab('businesses')}
-                >
-                  Your Businesses
-                </button>
-                <button
-                  className={`px-6 py-4 text-sm font-medium ${activeTab === 'activity'
-                    ? 'border-b-2 border-accent text-accent'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  onClick={() => setActiveTab('activity')}
-                >
-                  Recent Activity
-                </button>
+                {/* Regular user tabs */}
+                {!isAdmin && (
+                  <>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'businesses'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('businesses')}
+                    >
+                      Your Businesses
+                    </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'activity'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('activity')}
+                    >
+                      Recent Activity
+                    </button>
+                  </>
+                )}
+
+                {/* Admin-specific tabs */}
+                {isAdmin && (
+                  <>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'users'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('users')}
+                    >
+                      Manage Users
+                    </button>
+                    <button
+                      className={`px-6 py-4 text-sm font-medium ${activeTab === 'analytics'
+                        ? 'border-b-2 border-accent text-accent'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      onClick={() => setActiveTab('analytics')}
+                    >
+                      Analytics
+                    </button>
+                  </>
+                )}
+
+                {/* Common tabs for all users */}
                 <button
                   className={`px-6 py-4 text-sm font-medium ${activeTab === 'settings'
                     ? 'border-b-2 border-accent text-accent'
@@ -205,24 +247,22 @@ export default function Dashboard() {
                 >
                   Account Settings
                 </button>
-                {(hasRole('admin') || businesses.some(b => b.userRole === 'owner')) && (
-                  <button
-                    className={`px-6 py-4 text-sm font-medium ${activeTab === 'invite'
-                      ? 'border-b-2 border-accent text-accent'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    onClick={() => setActiveTab('invite')}
-                  >
-                    Invite Users
-                  </button>
-                )}
+                <button
+                  className={`px-6 py-4 text-sm font-medium ${activeTab === 'invite'
+                    ? 'border-b-2 border-accent text-accent'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  onClick={() => setActiveTab('invite')}
+                >
+                  Invite Users
+                </button>
               </nav>
             </div>
 
             {/* Tab Content */}
             <div className="p-6">
-              {/* Businesses Tab */}
-              {activeTab === 'businesses' && (
+              {/* Businesses Tab - Only for regular users */}
+              {activeTab === 'businesses' && !isAdmin && (
                 <div>
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-semibold text-dark">Your Businesses</h2>
@@ -329,8 +369,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Activity Tab */}
-              {activeTab === 'activity' && (
+              {/* Activity Tab - Only for regular users */}
+              {activeTab === 'activity' && !isAdmin && (
                 <div>
                   <h2 className="text-xl font-semibold text-dark mb-6">Recent Activity</h2>
                   <div className="overflow-x-auto">
@@ -376,7 +416,46 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Settings Tab */}
+              {/* Admin-specific Users Tab */}
+              {activeTab === 'users' && isAdmin && (
+                <div>
+                  <h2 className="text-xl font-semibold text-dark mb-6">Manage Users</h2>
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <p className="text-gray-600">This section allows you to manage all users across both NM and CO states.</p>
+                    <div className="mt-4">
+                      <button className="px-4 py-2 bg-dark text-white rounded-md hover:bg-accent transition duration-300">
+                        View All Users
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin-specific Analytics Tab */}
+              {activeTab === 'analytics' && isAdmin && (
+                <div>
+                  <h2 className="text-xl font-semibold text-dark mb-6">Analytics Dashboard</h2>
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <p className="text-gray-600">View analytics for both NM and CO platforms.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div className="bg-white p-4 rounded shadow">
+                        <h3 className="font-medium text-lg mb-2">New Mexico</h3>
+                        <p>Total Businesses: 24</p>
+                        <p>Active Users: 56</p>
+                        <p>Monthly Views: 12,450</p>
+                      </div>
+                      <div className="bg-white p-4 rounded shadow">
+                        <h3 className="font-medium text-lg mb-2">Colorado</h3>
+                        <p>Total Businesses: 36</p>
+                        <p>Active Users: 78</p>
+                        <p>Monthly Views: 18,320</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Settings Tab - For all users */}
               {activeTab === 'settings' && (
                 <div>
                   <h2 className="text-xl font-semibold text-dark mb-6">Account Settings</h2>
@@ -401,12 +480,14 @@ export default function Dashboard() {
                             <p className="text-sm text-gray-500">Role</p>
                             <p className="font-medium capitalize">{userProfile.role}</p>
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Accessible States</p>
-                            <p className="font-medium">
-                              {userProfile.accessibleStates ? userProfile.accessibleStates.join(', ') : 'None'}
-                            </p>
-                          </div>
+                          {!isAdmin && (
+                            <div>
+                              <p className="text-sm text-gray-500">Accessible States</p>
+                              <p className="font-medium">
+                                {userProfile.accessibleStates ? userProfile.accessibleStates.join(', ') : 'None'}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -414,7 +495,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Invite Users Tab */}
+              {/* Invite Users Tab - For all users but with different forms */}
               {activeTab === 'invite' && (
                 <div>
                   <h2 className="text-xl font-semibold text-dark mb-6">Invite Users</h2>
@@ -448,29 +529,33 @@ export default function Dashboard() {
                         />
                       </div>
 
-                      <div>
-                        <label htmlFor="inviteBusinessId" className="block text-sm font-medium text-gray-700 mb-1">
-                          Business
-                        </label>
-                        <select
-                          id="inviteBusinessId"
-                          value={inviteBusinessId}
-                          onChange={(e) => setInviteBusinessId(e.target.value)}
-                          className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
-                          required
-                        >
-                          <option value="">Select a business</option>
-                          {businesses
-                            .filter(b => hasRole('admin') || b.userRole === 'owner')
-                            .map(business => (
-                              <option key={business.id} value={business.id}>
-                                {business.name}
-                              </option>
-                            ))
-                          }
-                        </select>
-                      </div>
+                      {/* Business selection - Only for regular users */}
+                      {!isAdmin && (
+                        <div>
+                          <label htmlFor="inviteBusinessId" className="block text-sm font-medium text-gray-700 mb-1">
+                            Business
+                          </label>
+                          <select
+                            id="inviteBusinessId"
+                            value={inviteBusinessId}
+                            onChange={(e) => setInviteBusinessId(e.target.value)}
+                            className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                            required
+                          >
+                            <option value="">Select a business</option>
+                            {businesses
+                              .filter(b => hasRole('admin') || b.userRole === 'owner')
+                              .map(business => (
+                                <option key={business.id} value={business.id}>
+                                  {business.name}
+                                </option>
+                              ))
+                            }
+                          </select>
+                        </div>
+                      )}
 
+                      {/* Role selection - Different options for admin */}
                       <div>
                         <label htmlFor="inviteRole" className="block text-sm font-medium text-gray-700 mb-1">
                           Role
@@ -481,10 +566,33 @@ export default function Dashboard() {
                           onChange={(e) => setInviteRole(e.target.value)}
                           className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
                         >
-                          <option value="operator">Operator</option>
-                          {hasRole('admin') && <option value="admin">Admin</option>}
+                          {isAdmin ? (
+                            <>
+                              <option value="operator">Operator</option>
+                              <option value="admin">Admin</option>
+                            </>
+                          ) : (
+                            <option value="operator">Operator</option>
+                          )}
                         </select>
                       </div>
+
+                      {/* State selection - Only for admin users */}
+                      {isAdmin && (
+                        <div>
+                          <label htmlFor="inviteState" className="block text-sm font-medium text-gray-700 mb-1">
+                            State Access
+                          </label>
+                          <select
+                            id="inviteState"
+                            className="block w-full px-3 py-2 bg-gray-900 text-white border-0 rounded-md shadow-sm focus:ring-accent focus:border-accent"
+                          >
+                            <option value="NM">New Mexico</option>
+                            <option value="CO">Colorado</option>
+                            <option value="both">Both States</option>
+                          </select>
+                        </div>
+                      )}
 
                       <div>
                         <button

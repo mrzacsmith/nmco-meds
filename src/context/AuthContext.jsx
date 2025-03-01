@@ -32,12 +32,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Admin email addresses
-const ADMIN_EMAILS = [
-  'zac@codeshock.dev',
-  'alexandra@codeshock.dev'
-];
-
 // Create the auth context
 const AuthContext = createContext();
 
@@ -119,29 +113,31 @@ export const AuthProvider = ({ children }) => {
 
       const user = userCredential.user;
 
-      // Determine if user is admin based on email
-      const isAdmin = ADMIN_EMAILS.includes(userData.email.toLowerCase());
-      const role = isAdmin ? 'admin' : 'operator';
+      // Default role is operator
+      const role = 'operator';
 
-      // Create business document
-      const businessData = {
-        name: userData.businessName,
-        state: userData.state,
-        createdAt: serverTimestamp(),
-        createdBy: user.uid,
-        users: [{
-          userId: user.uid,
-          role: 'owner',
-          permissions: ['read', 'write'],
-          email: userData.email
-        }]
-      };
+      // Create business document if user is registering as a business owner
+      let businessRef = null;
+      if (userData.businessName) {
+        const businessData = {
+          name: userData.businessName,
+          state: userData.state,
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          users: [{
+            userId: user.uid,
+            role: 'owner',
+            permissions: ['read', 'write'],
+            email: userData.email
+          }]
+        };
 
-      // Add business to the appropriate collection based on state
-      const businessRef = await addDoc(
-        collection(db, `businesses-${userData.state.toLowerCase()}`),
-        businessData
-      );
+        // Add business to the appropriate collection based on state
+        businessRef = await addDoc(
+          collection(db, `businesses-${userData.state.toLowerCase()}`),
+          businessData
+        );
+      }
 
       // Create user document
       const userDocRef = doc(db, 'users', user.uid);
@@ -152,19 +148,17 @@ export const AuthProvider = ({ children }) => {
         role: role,
         createdAt: serverTimestamp(),
         agreedToTerms: userData.agreeToTerms,
-        isLegalAgent: userData.isLegalAgent,
-        businesses: [{
+        isLegalAgent: userData.isLegalAgent || false,
+        accessibleStates: [userData.state]
+      };
+
+      // Add business to user profile if created
+      if (businessRef) {
+        userProfileData.businesses = [{
           businessId: businessRef.id,
           role: 'owner',
           state: userData.state
-        }]
-      };
-
-      // If admin, grant access to both states
-      if (isAdmin) {
-        userProfileData.accessibleStates = ['NM', 'CO'];
-      } else {
-        userProfileData.accessibleStates = [userData.state];
+        }];
       }
 
       await setDoc(userDocRef, userProfileData);

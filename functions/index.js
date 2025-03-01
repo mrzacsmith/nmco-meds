@@ -15,6 +15,8 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const admin = require('firebase-admin')
+const functions = require('firebase-functions')
+const db = require('firebase-admin').firestore()
 
 // Initialize Firebase Admin
 admin.initializeApp()
@@ -116,103 +118,123 @@ exports.processNewUser = onUserCreated({
   }
 })
 
-// Function to invite a user to a business
-exports.inviteUserToBusiness = onCall({
-  region: 'us-central1',
-  maxInstances: 10,
-}, async (request) => {
-  // Ensure the user is authenticated
-  if (!request.auth) {
-    throw new Error('Unauthorized')
+// Invite a user to a business
+exports.inviteUserToBusiness = functions.https.onCall(async (data, context) => {
+  // Check if the user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be logged in to invite users.'
+    );
   }
-  
-  const { email, businessId, state, role } = request.data
-  
-  if (!email || !businessId || !state) {
-    throw new Error('Missing required fields')
+
+  const { email, businessId, state, role, isAdminInvite } = data;
+
+  // Validate input
+  if (!email) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Email is required.'
+    );
   }
-  
+
+  // For non-admin invites, businessId and state are required
+  if (!isAdminInvite && (!businessId || !state)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Business ID and state are required.'
+    );
+  }
+
   try {
     // Get the current user's profile
-    const callerDoc = await admin.firestore().collection('users').doc(request.auth.uid).get()
-    
-    if (!callerDoc.exists) {
-      throw new Error('User profile not found')
-    }
-    
-    const callerData = callerDoc.data()
-    
-    // Check if the caller is an admin or the owner of the business
-    const isAdmin = callerData.role === 'admin'
-    const isOwner = callerData.businesses && callerData.businesses.some(b => 
-      b.businessId === businessId && b.state === state && b.role === 'owner'
-    )
-    
-    if (!isAdmin && !isOwner) {
-      throw new Error('You do not have permission to invite users to this business')
-    }
-    
-    // Check if the business exists
-    const businessDoc = await admin.firestore().collection(`businesses-${state.toLowerCase()}`).doc(businessId).get()
-    
-    if (!businessDoc.exists) {
-      throw new Error('Business not found')
-    }
-    
-    // Check if the business already has 3 users (including the owner)
-    const businessData = businessDoc.data()
-    if (businessData.users && businessData.users.length >= 3 && !isAdmin) {
-      throw new Error('This business already has the maximum number of users (3)')
-    }
-    
-    // Check if the user already exists
-    let userId = null
-    try {
-      const userRecord = await admin.auth().getUserByEmail(email)
-      userId = userRecord.uid
-    } catch (error) {
-      // User doesn't exist, we'll create an invitation instead
-      // For now, just return an error
-      throw new Error('User not found. Please ask them to register first.')
-    }
-    
-    // Get the user's profile
-    const userDoc = await admin.firestore().collection('users').doc(userId).get()
-    
+    const userRef = db.collection('users').doc(context.auth.uid);
+    const userDoc = await userRef.get();
+
     if (!userDoc.exists) {
-      throw new Error('User profile not found')
+      throw new functions.https.HttpsError(
+        'not-found',
+        'User profile not found.'
+      );
+    }
+
+    const userData = userDoc.data();
+    
+    // Handle admin invites differently
+    if (isAdminInvite) {
+      // Check if the current user is an admin
+      if (userData.role !== 'admin') {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Only admins can send admin invites.'
+        );
+      }
+      
+      // Create or update the user invitation
+      const inviteRef = db.collection('invitations').doc(email.toLowerCase());
+      await inviteRef.set({
+        email: email.toLowerCase(),
+        role: role,
+        invitedBy: context.auth.uid,
+        invitedAt: admin.firestore.FieldValue.serverTimestamp(),
+        isAdminInvite: true
+      });
+      
+      return { message: `Invitation sent to ${email}` };
     }
     
-    const userData = userDoc.data()
-    
-    // Check if the user is already associated with this business
-    if (userData.businesses && userData.businesses.some(b => b.businessId === businessId && b.state === state)) {
-      throw new Error('User is already associated with this business')
+    // For regular business invites
+    // Check if the user has permission to invite to this business
+    const businessRef = db.collection(`businesses-${state.toLowerCase()}`).doc(businessId);
+    const businessDoc = await businessRef.get();
+
+    if (!businessDoc.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Business not found.'
+      );
     }
-    
-    // Update the user's profile
-    await admin.firestore().collection('users').doc(userId).update({
-      businesses: admin.firestore.FieldValue.arrayUnion({
-        businessId,
-        state,
-        role: role || 'operator'
-      }),
-      accessibleStates: admin.firestore.FieldValue.arrayUnion(state)
-    })
-    
-    // Update the business document
-    await admin.firestore().collection(`businesses-${state.toLowerCase()}`).doc(businessId).update({
-      users: admin.firestore.FieldValue.arrayUnion({
-        userId,
-        role: role || 'operator',
-        permissions: ['read'],
-        email
-      })
-    })
-    
-    return { success: true, message: 'User successfully invited to the business' }
+
+    const businessData = businessDoc.data();
+
+    // Check if the user is an admin or the owner of the business
+    const isAdmin = userData.role === 'admin';
+    const isOwner = userData.businesses && userData.businesses.some(
+      b => b.businessId === businessId && b.role === 'owner'
+    );
+
+    if (!isAdmin && !isOwner) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You do not have permission to invite users to this business.'
+      );
+    }
+
+    // Check if the business already has 3 users (unless the inviter is an admin)
+    if (!isAdmin && businessData.users && businessData.users.length >= 3) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'This business has reached the maximum number of users. Please upgrade your subscription to add more users.'
+      );
+    }
+
+    // Create or update the user invitation
+    const inviteRef = db.collection('invitations').doc(email.toLowerCase());
+    await inviteRef.set({
+      email: email.toLowerCase(),
+      businessId: businessId,
+      state: state,
+      role: role,
+      invitedBy: context.auth.uid,
+      invitedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { message: `Invitation sent to ${email}` };
   } catch (error) {
-    console.error('Error inviting user:', error)
-    throw new Error(error.message)
+    console.error('Error inviting user:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'An error occurred while inviting the user.'
+    );
   }
-})
+});
