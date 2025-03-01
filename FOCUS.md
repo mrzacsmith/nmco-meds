@@ -28,6 +28,7 @@ The application uses a shared codebase with domain-specific content, styling, an
    - Multiple images
    - Detailed business information
    - Available in monthly and annual billing options
+   - Standard tier covers 1-2 locations in a single state
 
 3. **Elite** ($$)
    - All Featured plan benefits
@@ -35,6 +36,16 @@ The application uses a shared codebase with domain-specific content, styling, an
    - Highlighted sales promotions
    - Priority placement in search results
    - Available in monthly and annual billing options
+   - Standard tier covers 1-2 locations in a single state
+
+4. **Corporate Plans** ($$$)
+   - Available as Featured or Elite level
+   - Covers up to 25 locations in a single state
+   - Centralized management of all locations
+   - Bulk editing capabilities
+   - Enhanced analytics and reporting
+   - Priority customer support
+   - Available in monthly and annual billing options (with significant discount for annual)
 
 ### User Roles
 1. **Operator** (default)
@@ -66,6 +77,9 @@ businesses-co/
   │     ├── planLevel: "free" | "featured" | "elite"
   │     ├── planBilling: null | "monthly" | "annual"
   │     ├── planExpiry: Timestamp
+  │     ├── corporatePlan: Boolean
+  │     ├── corporateId: String (reference to corporate group if part of one)
+  │     ├── ownerId: String (reference to users collection)
   │     └── promotions/
   │           ├── [promotionId]/
   │                 ├── title: String
@@ -81,10 +95,57 @@ businesses-nm/
 users/
   ├── [userId]/
   │     ├── email: String
+  │     ├── displayName: String
   │     ├── role: "operator" | "admin"
-  │     ├── businessIds: Array<String>
+  │     ├── states: Array<"CO" | "NM"> (states where user has businesses)
+  │     ├── businessIds: {
+  │     │     co: Array<String> (references to businesses-co)
+  │     │     nm: Array<String> (references to businesses-nm)
+  │     │ }
+  │     ├── companyName: String (for corporate users with multiple locations)
+  │     ├── phone: String
+  │     ├── isMultiState: Boolean (flag for corporate users with locations in both states)
+  │     ├── hasCorporatePlan: Boolean
+  │     ├── corporatePlanDetails: {
+  │     │     co: {
+  │     │         planLevel: "featured" | "elite" | null,
+  │     │         planBilling: "monthly" | "annual" | null,
+  │     │         planExpiry: Timestamp | null
+  │     │     },
+  │     │     nm: {
+  │     │         planLevel: "featured" | "elite" | null,
+  │     │         planBilling: "monthly" | "annual" | null,
+  │     │         planExpiry: Timestamp | null
+  │     │     }
+  │     │ }
+  │     ├── createdAt: Timestamp
+  │     └── lastLogin: Timestamp
+
+corporate-groups/
+  ├── [corporateId]/
   │     ├── name: String
-  │     └── createdAt: Timestamp
+  │     ├── ownerId: String (reference to users collection)
+  │     ├── states: Array<"CO" | "NM">
+  │     ├── businessIds: {
+  │     │     co: Array<String> (references to businesses-co)
+  │     │     nm: Array<String> (references to businesses-nm)
+  │     │ }
+  │     ├── planDetails: {
+  │     │     co: {
+  │     │         planLevel: "featured" | "elite" | null,
+  │     │         planBilling: "monthly" | "annual" | null,
+  │     │         planExpiry: Timestamp | null,
+  │     │         locationCount: Number
+  │     │     },
+  │     │     nm: {
+  │     │         planLevel: "featured" | "elite" | null,
+  │     │         planBilling: "monthly" | "annual" | null,
+  │     │         planExpiry: Timestamp | null,
+  │     │         locationCount: Number
+  │     │     }
+  │     │ }
+  │     ├── createdAt: Timestamp
+  │     └── updatedAt: Timestamp
 ```
 
 ## Template & Content Differences
@@ -113,7 +174,7 @@ users/
 ### Phase 1: Core Structure & Authentication
 1. Domain context and theme setup ✅
 2. Basic page structure and navigation ✅
-3. Authentication system (login/register)
+3. Authentication system (login/register with Google and email)
 4. Business dashboard (basic)
 5. Initial deployment
 
@@ -126,8 +187,9 @@ users/
 ### Phase 3: Subscription & Premium Features
 1. Subscription management
 2. Featured/Elite plan implementation
-3. Promotion management for Elite users
-4. Newsletter integration
+3. Corporate plan implementation
+4. Promotion management for Elite users
+5. Newsletter integration
 
 ### Phase 4: Admin & Advanced Features
 1. Admin dashboard
@@ -138,9 +200,10 @@ users/
 ## Technical Requirements
 
 ### Authentication
-- Firebase Authentication
+- Firebase Authentication with email and Google sign-in
 - Protected routes
 - Role-based access control
+- Support for multi-state business operators
 
 ### Maps Integration
 - Google Maps API

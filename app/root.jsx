@@ -8,6 +8,7 @@ import {
 } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { DomainProvider } from "./context/DomainContext";
+import { AuthProvider } from "./context/AuthContext";
 
 import "./tailwind.css";
 
@@ -70,8 +71,10 @@ export default function App() {
   const { domain } = useLoaderData();
 
   return (
-    <DomainProvider domain={domain}>
-      <Outlet />
-    </DomainProvider>
+    <AuthProvider>
+      <DomainProvider domain={domain}>
+        <Outlet />
+      </DomainProvider>
+    </AuthProvider>
   );
 } 
