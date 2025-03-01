@@ -52,6 +52,26 @@ export default function Register() {
     setError('');
 
     // Validate form
+    if (!formData.businessName.trim()) {
+      setError('Business name is required');
+      return;
+    }
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('First and last name are required');
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      setError('Email is required');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;

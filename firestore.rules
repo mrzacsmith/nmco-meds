@@ -36,21 +36,25 @@ service cloud.firestore {
     }
     
     // Business collections rules
-    match /businesses-nm/{businessId} {
+    match /businesses-new-mexico/{businessId} {
       // Anyone can read business data
-      // Only owners or admins can write
+      // Allow creation if the user is authenticated and is setting themselves as the creator
+      // Allow updates if the user is an owner or admin
       allow read: if true;
-      allow write: if isAuthenticated() && (isOwnerOfBusiness(businessId, 'NM') || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (isOwnerOfBusiness(businessId, 'NM') || isAdmin());
       
       // Only users with NM access can list businesses
       allow list: if hasStateAccess('NM');
     }
     
-    match /businesses-co/{businessId} {
+    match /businesses-colorado/{businessId} {
       // Anyone can read business data
-      // Only owners or admins can write
+      // Allow creation if the user is authenticated and is setting themselves as the creator
+      // Allow updates if the user is an owner or admin
       allow read: if true;
-      allow write: if isAuthenticated() && (isOwnerOfBusiness(businessId, 'CO') || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (isOwnerOfBusiness(businessId, 'CO') || isAdmin());
       
       // Only users with CO access can list businesses
       allow list: if hasStateAccess('CO');

@@ -95,13 +95,31 @@ export const AuthProvider = ({ children }) => {
 
       const user = userCredential.user;
 
-      // Set default role as operator
+      // Set role as operator
       const role = 'operator';
 
       // Get state from domain
       const state = domain.state || 'NM';
 
-      // Create business document if user is registering as a business owner
+      // Create user document FIRST
+      const userDocRef = doc(db, 'users', user.uid);
+      const userProfileData = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        role: role,
+        createdAt: serverTimestamp(),
+        agreedToTerms: userData.agreeToTerms,
+        isLegalAgent: userData.isLegalAgent || false,
+        isBanned: false,
+        accessibleStates: [state],
+        businesses: [] // Initialize with empty array
+      };
+
+      // Save the initial user document
+      await setDoc(userDocRef, userProfileData);
+
+      // THEN create business document if user is registering as a business owner
       let businessRef = null;
       if (userData.businessName) {
         const businessData = {
@@ -122,37 +140,67 @@ export const AuthProvider = ({ children }) => {
           collection(db, `businesses-${state.toLowerCase()}`),
           businessData
         );
+
+        // Update user document with business reference
+        if (businessRef) {
+          await setDoc(userDocRef, {
+            businesses: [{
+              businessId: businessRef.id,
+              role: 'owner',
+              state: state
+            }]
+          }, { merge: true });
+
+          // Update local user profile data
+          userProfileData.businesses = [{
+            businessId: businessRef.id,
+            role: 'owner',
+            state: state
+          }];
+
+          // Update platform stats
+          try {
+            const statsDocRef = doc(db, 'stats', 'platform-stats');
+            const statsDoc = await getDoc(statsDocRef);
+
+            if (statsDoc.exists()) {
+              // Get current stats
+              const statsData = statsDoc.data();
+
+              // Update the appropriate state's stats
+              const stateKey = state.toUpperCase();
+              const currentLocations = (statsData[stateKey]?.locations || 0);
+              const currentOperators = (statsData[stateKey]?.operators || 0);
+
+              // Create update object
+              const statsUpdate = {};
+              statsUpdate[`${stateKey}.locations`] = currentLocations + 1;
+              statsUpdate[`${stateKey}.operators`] = currentOperators + 1;
+
+              // Update stats document
+              await setDoc(statsDocRef, statsUpdate, { merge: true });
+            } else {
+              // Create new stats document if it doesn't exist
+              const initialStats = {};
+              initialStats[stateKey] = {
+                locations: 1,
+                operators: 1
+              };
+              await setDoc(statsDocRef, initialStats);
+            }
+          } catch (statsError) {
+            console.error("Error updating platform stats:", statsError);
+            // Continue with registration even if stats update fails
+          }
+        }
       }
-
-      // Create user document
-      const userDocRef = doc(db, 'users', user.uid);
-      const userProfileData = {
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        email: userData.email,
-        role: role,
-        createdAt: serverTimestamp(),
-        agreedToTerms: userData.agreeToTerms,
-        isLegalAgent: userData.isLegalAgent || false,
-        accessibleStates: [state]
-      };
-
-      // Add business to user profile if created
-      if (businessRef) {
-        userProfileData.businesses = [{
-          businessId: businessRef.id,
-          role: 'owner',
-          state: state
-        }];
-      }
-
-      await setDoc(userDocRef, userProfileData);
 
       // Set user profile in state
       setUserProfile(userProfileData);
 
       return { success: true };
     } catch (error) {
+      console.error("Registration error:", error);
       return {
         success: false,
         error: error.message
