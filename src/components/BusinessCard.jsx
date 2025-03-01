@@ -43,11 +43,6 @@ export function BusinessCard({ business, domainParam }) {
           alt={name}
           className="w-full h-full object-cover"
         />
-        {isPremium && (
-          <div className="absolute top-2 right-2 bg-warmAccent text-dark px-2 py-1 rounded-md text-xs font-semibold">
-            Premium
-          </div>
-        )}
       </div>
 
       {/* Business Info */}

@@ -157,13 +157,13 @@ export function SearchBar({ className = '' }) {
         background: 'linear-gradient(135deg, #172A3A 0%, #508991 100%)',
         width: '100%',
         position: 'relative',
-        paddingTop: '2rem',
-        paddingBottom: '2rem'
+        paddingTop: '1.5rem',
+        paddingBottom: '1.5rem'
       }}>
         <div className="container mx-auto px-4">
           {/* Heading Section */}
-          <div className="text-center text-white mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+          <div className="text-center text-white mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold mb-1">
               Find Cannabis in {domain.state}
             </h1>
             <p className="text-xl">
@@ -175,14 +175,12 @@ export function SearchBar({ className = '' }) {
           <div className="mx-auto w-full max-w-[1440px] px-4" style={{ width: '80%' }}>
             {/* Combined Search and Map Container */}
             <div className="bg-white p-4 rounded-md shadow-md">
-              <h3 className="text-xl font-semibold mb-3">Search Cannabis Locations in {domain.state}</h3>
-
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {/* Search Form Section */}
                 <div className="w-full">
                   <form onSubmit={handleSubmit} className="w-full">
                     {/* Search Type Tabs */}
-                    <div className="flex mb-3 border-b border-gray-200">
+                    <div className="flex mb-2 border-b border-gray-200">
                       {searchTypes.map((type) => (
                         <button
                           key={type.id}
@@ -260,9 +258,8 @@ export function SearchBar({ className = '' }) {
                 </div>
 
                 {/* Google Map Section */}
-                <div className="w-full mt-3">
-                  <h4 className="text-lg font-medium mb-2">Cannabis Locations in {domain.state}</h4>
-                  <div className="w-full h-[450px] rounded-md border border-gray-300" style={{ background: '#f0f0f0' }}>
+                <div className="w-full mt-2">
+                  <div className="w-full h-[400px] rounded-md border border-gray-300" style={{ background: '#f0f0f0' }}>
                     {!mapLoaded ? (
                       <div className="flex items-center justify-center h-full">
                         <p className="text-gray-500">Loading map...</p>
