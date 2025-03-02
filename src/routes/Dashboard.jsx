@@ -536,13 +536,11 @@ export default function Dashboard() {
   };
 
   // Manage Users Tab - For admins
-  const handleUserSearch = async (searchTerm, showAllUsers = false) => {
-    if (!selectedState && !showAllUsers) {
-      setSearchResults([]);
-      return;
-    }
+  const handleUserSearch = async (searchTerm, showAllUsers = false, stateOverride = null) => {
+    // Use stateOverride if provided, otherwise use selectedState
+    const stateToUse = stateOverride || selectedState;
 
-    if (!showAllUsers && searchTerm.length < 2) {
+    if (!stateToUse && !showAllUsers) {
       setSearchResults([]);
       return;
     }
@@ -552,34 +550,45 @@ export default function Dashboard() {
 
     try {
       const usersRef = collection(db, 'users');
-      let q = usersRef;
-
-      if (!showAllUsers) {
-        // If not showing all users, filter by state and search term
-        q = query(usersRef, where('accessibleStates', 'array-contains', selectedState));
-      }
-
-      const snapshot = await getDocs(q);
+      // Get all users first, then filter by state client-side
+      const snapshot = await getDocs(usersRef);
       const searchTermLower = searchTerm.toLowerCase();
 
-      const results = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        .filter(user => {
-          if (!showAllUsers && searchTerm) {
-            // Filter by search term if provided
-            const nameMatch =
-              (user.firstName?.toLowerCase().includes(searchTermLower)) ||
-              (user.lastName?.toLowerCase().includes(searchTermLower));
-            const emailMatch = user.email?.toLowerCase().includes(searchTermLower);
-            const roleMatch = user.role?.toLowerCase().includes(searchTermLower);
+      let results = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-            return nameMatch || emailMatch || roleMatch;
-          }
-          return true; // Include all users when showing all or no search term
+      // Filter by state if not showing all users
+      if (!showAllUsers) {
+        // Get the state code based on selected state
+        const stateCode = stateToUse === 'New Mexico' ? 'NM' : 'CO';
+
+        results = results.filter(user => {
+          // Check if user's accessibleStates array includes the state code
+          return user.accessibleStates && user.accessibleStates.includes(stateCode);
         });
+      }
+
+      // Apply search term filter if provided
+      if (searchTerm && searchTerm.length >= 2) {
+        results = results.filter(user => {
+          const nameMatch =
+            (user.firstName?.toLowerCase().includes(searchTermLower)) ||
+            (user.lastName?.toLowerCase().includes(searchTermLower));
+          const emailMatch = user.email?.toLowerCase().includes(searchTermLower);
+          const roleMatch = user.role?.toLowerCase().includes(searchTermLower);
+
+          return nameMatch || emailMatch || roleMatch;
+        });
+      }
+
+      // Sort users alphabetically by firstName, then lastName
+      results.sort((a, b) => {
+        const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim().toLowerCase();
+        const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim().toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
 
       setSearchResults(results);
     } catch (err) {
@@ -1140,7 +1149,10 @@ export default function Dashboard() {
                           <div className="flex gap-4">
                             <button
                               type="button"
-                              onClick={() => setSelectedState('New Mexico')}
+                              onClick={() => {
+                                setSelectedState('New Mexico');
+                                handleUserSearch('', false, 'New Mexico');
+                              }}
                               className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
                                 ? 'bg-accent text-white border-accent'
                                 : 'border-gray-300 hover:border-accent'
@@ -1153,7 +1165,10 @@ export default function Dashboard() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setSelectedState('Colorado')}
+                              onClick={() => {
+                                setSelectedState('Colorado');
+                                handleUserSearch('', false, 'Colorado');
+                              }}
                               className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
                                 ? 'bg-accent text-white border-accent'
                                 : 'border-gray-300 hover:border-accent'
@@ -1569,7 +1584,10 @@ export default function Dashboard() {
                       <div className="flex items-center gap-4 mb-4">
                         <button
                           type="button"
-                          onClick={() => setSelectedState('New Mexico')}
+                          onClick={() => {
+                            setSelectedState('New Mexico');
+                            handleUserSearch('', false, 'New Mexico');
+                          }}
                           className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
                             ? 'bg-accent text-white border-accent'
                             : 'border-gray-300 hover:border-accent'
@@ -1582,7 +1600,10 @@ export default function Dashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedState('Colorado')}
+                          onClick={() => {
+                            setSelectedState('Colorado');
+                            handleUserSearch('', false, 'Colorado');
+                          }}
                           className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
                             ? 'bg-accent text-white border-accent'
                             : 'border-gray-300 hover:border-accent'
@@ -1600,7 +1621,11 @@ export default function Dashboard() {
                           id="searchTerm"
                           className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent pr-10"
                           placeholder="Search by company name, city, contact info..."
-                          onChange={(e) => handleLocationSearch(e.target.value)}
+                          onChange={(e) => {
+                            // Preserve the current state filter when searching
+                            const showAllUsers = !selectedState;
+                            handleLocationSearch(e.target.value, showAllUsers);
+                          }}
                         />
                         <button
                           onClick={() => {
@@ -1737,7 +1762,10 @@ export default function Dashboard() {
                       <div className="flex items-center gap-4 mb-4">
                         <button
                           type="button"
-                          onClick={() => setSelectedState('New Mexico')}
+                          onClick={() => {
+                            setSelectedState('New Mexico');
+                            handleUserSearch('', false, 'New Mexico');
+                          }}
                           className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'New Mexico'
                             ? 'bg-accent text-white border-accent'
                             : 'border-gray-300 hover:border-accent'
@@ -1750,7 +1778,10 @@ export default function Dashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedState('Colorado')}
+                          onClick={() => {
+                            setSelectedState('Colorado');
+                            handleUserSearch('', false, 'Colorado');
+                          }}
                           className={`group relative p-2 rounded-lg border transition-all hover:scale-110 ${selectedState === 'Colorado'
                             ? 'bg-accent text-white border-accent'
                             : 'border-gray-300 hover:border-accent'
@@ -1763,7 +1794,11 @@ export default function Dashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleUserSearch('', true)}
+                          onClick={() => {
+                            // Clear the selected state when showing all users
+                            setSelectedState(null);
+                            handleUserSearch('', true);
+                          }}
                           className="group relative p-2 rounded-lg border transition-all hover:scale-110 border-gray-300 hover:border-accent"
                           title="Show All Users"
                         >
@@ -1779,12 +1814,16 @@ export default function Dashboard() {
                           id="userSearchTerm"
                           className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-accent focus:border-accent pr-10"
                           placeholder="Search by name, email, or role..."
-                          onChange={(e) => handleUserSearch(e.target.value)}
+                          onChange={(e) => {
+                            // Preserve the current state filter when searching
+                            const showAllUsers = !selectedState;
+                            handleUserSearch(e.target.value, showAllUsers, selectedState);
+                          }}
                         />
                         <button
                           onClick={() => {
                             document.getElementById('userSearchTerm').value = '';
-                            handleUserSearch('');
+                            handleUserSearch('', !selectedState, selectedState);
                           }}
                           className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
                         >

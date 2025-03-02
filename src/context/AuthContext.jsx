@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }) => {
 
       // Get state from domain
       const state = domain.state || 'NM';
+      const stateCode = domain.stateCode || 'NM'; // Use stateCode from domain
 
       // Create user document FIRST
       const userDocRef = doc(db, 'users', user.uid);
@@ -112,7 +113,7 @@ export const AuthProvider = ({ children }) => {
         agreedToTerms: userData.agreeToTerms,
         isLegalAgent: userData.isLegalAgent || false,
         isBanned: false,
-        accessibleStates: [state],
+        accessibleStates: [stateCode], // Use stateCode instead of state
         businesses: [] // Initialize with empty array
       };
 
@@ -259,8 +260,13 @@ export const AuthProvider = ({ children }) => {
     // Admins have access to all states
     if (userProfile.role === 'admin') return true;
 
-    // Check if user has access to the specified state
-    return userProfile.accessibleStates && userProfile.accessibleStates.includes(state);
+    // Convert state name to state code if needed
+    let stateCode = state;
+    if (state === 'New Mexico') stateCode = 'NM';
+    if (state === 'Colorado') stateCode = 'CO';
+
+    // Check if user has access to the specified state code
+    return userProfile.accessibleStates && userProfile.accessibleStates.includes(stateCode);
   };
 
   const value = {
